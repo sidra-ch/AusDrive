@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "AusDrive Premium",
+    "slug": "ausdrive-premium",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ausdrive.fleet"
+    },
+    "android": {
+      "package": "com.ausdrive.fleet",
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow AusDrive to use your location for GPS tracking."
+        }
+      ],
+      "expo-asset",
+      "expo-font",
+      "expo-secure-store",
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.xxxxxx-xxxxxx"
+        }
+      ]
+    ],
+    "scheme": "ausdrive",
+    "owner": "mssidra",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "8ce869e0-ca6f-4446-a042-738f64daa302"
+      }
+    }
+  }
+}

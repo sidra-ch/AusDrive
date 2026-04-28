@@ -1,0 +1,266 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// User Authentication & Roles
+// ============================================
+
+model User {
+  id              String    @id @default(uuid())
+  name            String
+  email           String    @unique
+  password        String?   // Nullable for social logins
+  provider        String    @default("email") // email, google, apple
+  isVerified      Boolean   @default(false)
+  role            String    @default("USER") // USER, ADMIN, STAFF
+  phone           String?
+  profileImage    String?
+  licenseNumber   String?
+  licenseExpiry   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  bookings        Booking[]
+  reviews         Review[]
+  walletTransactions WalletTransaction[]
+  savedCars       SavedCar[]
+
+  @@index([email])
+  @@index([role])
+}
+
+// ============================================
+// Cars & Fleet Management
+// ============================================
+
+model Car {
+  id              String    @id @default(uuid())
+  make            String    // Toyota, BMW, Mercedes
+  model           String    // Camry, 3 Series
+  year            Int
+  rego            String    @unique // Registration number
+  color           String
+  seats           Int
+  transmission    String    // Manual, Automatic
+  fuelType        String    // Petrol, Diesel, Electric, Hybrid
+  mileage         Int       // Current mileage
+  dailyRate       Float     // Base daily rental rate
+  city            String    // Sydney, Melbourne, Brisbane
+  location        String    // Specific location/branch
+  imageUrl        String?
+  rating          Float     @default(0) // Average rating
+  deals           Int       @default(0) // Number of active deals
+  isAvailable     Boolean   @default(true)
+  features        String[]  // ["GPS", "WiFi", "Backup Camera"]
+  latitude        Float?    // Current GPS latitude
+  longitude       Float?    // Current GPS longitude
+  lastGpsUpdate   DateTime? // Last GPS update timestamp
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  bookings        Booking[]
+  gpsLogs         GPSLog[]
+  maintenance     Maintenance[]
+  reviews         Review[]
+  savedBy         SavedCar[]
+
+  @@index([city])
+  @@index([isAvailable])
+  @@index([rating])
+}
+
+// ============================================
+// Bookings & Rentals
+// ============================================
+
+model Booking {
+  id              String    @id @default(uuid())
+  userId          String
+  carId           String
+  status          String    @default("PENDING") // PENDING, CONFIRMED, ACTIVE, COMPLETED, CANCELLED
+  pickupDate      DateTime
+  dropoffDate     DateTime
+  pickupLocation  String
+  dropoffLocation String
+  totalPrice      Float
+  pricePerDay     Float
+  discountCode    String?
+  discountAmount  Float     @default(0)
+  specialRequests String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  car             Car       @relation(fields: [carId], references: [id], onDelete: Restrict)
+  payment         Payment?
+  insurance       Insurance?
+
+  @@index([userId])
+  @@index([carId])
+  @@index([status])
+}
+
+model Payment {
+  id              String    @id @default(uuid())
+  bookingId       String    @unique
+  stripePaymentId String?
+  amount          Float
+  currency        String    @default("AUD")
+  status          String    @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED
+  paymentMethod   String    // card, wallet, bank_transfer
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  booking         Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([status])
+}
+
+model Insurance {
+  id              String    @id @default(uuid())
+  bookingId       String    @unique
+  type            String    // BASIC, COMPREHENSIVE, PREMIUM
+  coverageAmount  Float
+  deductible      Float
+  addedCost       Float
+  status          String    @default("ACTIVE")
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  booking         Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+}
+
+// ============================================
+// GPS Tracking & Real-time Location
+// ============================================
+
+model GPSLog {
+  id              String    @id @default(uuid())
+  carId           String
+  latitude        Float
+  longitude       Float
+  speed           Float?
+  accuracy        Float?
+  timestamp       DateTime  @default(now())
+
+  // Relations
+  car             Car       @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@index([carId])
+  @@index([timestamp])
+}
+
+// ============================================
+// Vehicle Maintenance
+// ============================================
+
+model Maintenance {
+  id              String    @id @default(uuid())
+  carId           String
+  type            String    // OIL_CHANGE, TIRE_ROTATION, INSPECTION, REPAIR
+  description     String
+  cost            Float?
+  serviceDate     DateTime
+  nextDueDate     DateTime?
+  status          String    @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED
+  notes           String?
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  car             Car       @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@index([carId])
+  @@index([status])
+}
+
+// ============================================
+// Reviews & Ratings
+// ============================================
+
+model Review {
+  id              String    @id @default(uuid())
+  userId          String
+  carId           String
+  rating          Int       // 1-5 stars
+  comment         String?
+  isAnonymous     Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  car             Car       @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, carId]) // One review per user per car
+  @@index([carId])
+  @@index([rating])
+}
+
+// ============================================
+// User Wallet & Transactions
+// ============================================
+
+model WalletTransaction {
+  id              String    @id @default(uuid())
+  userId          String
+  type            String    // CREDIT, DEBIT, REFUND
+  amount          Float
+  description     String
+  balance         Float     // Running balance after transaction
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ============================================
+// Saved/Wishlist Cars
+// ============================================
+
+model SavedCar {
+  id              String    @id @default(uuid())
+  userId          String
+  carId           String
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  car             Car       @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, carId]) // Can only save each car once per user
+  @@index([userId])
+}
+
+// ============================================
+// Promo Codes & Discounts
+// ============================================
+
+model PromoCode {
+  id              String    @id @default(uuid())
+  code            String    @unique
+  discountType    String    // PERCENTAGE, FIXED
+  discountValue   Float
+  maxUses         Int?
+  currentUses     Int       @default(0)
+  expiresAt       DateTime
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  @@index([code])
+  @@index([isActive])
+}
