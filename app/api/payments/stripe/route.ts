@@ -3,13 +3,16 @@ import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 import Stripe from "stripe";
 
+interface CustomerRow { id: unknown; email: string; name: string; phone: string; }
+interface RentalRow { customer_id: unknown; }
+
 function getStripe() {
   const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) {
     throw new Error("STRIPE_SECRET_KEY is not configured");
   }
 
-  return new Stripe(secretKey, { apiVersion: "2026-04-22.dahlia" as Parameters<typeof Stripe>[1]["apiVersion"] });
+  return new Stripe(secretKey, { apiVersion: '2026-04-22.dahlia' });
 }
 
 export async function POST(req: NextRequest) {
@@ -25,31 +28,33 @@ export async function POST(req: NextRequest) {
     }
 
     // Get rental & customer details
-    const rental = await query("SELECT * FROM rentals WHERE id = $1", [rentalId]);
+    const rental = await query<RentalRow>("SELECT * FROM rentals WHERE id = $1", [rentalId]);
     if (!rental.length) {
       return NextResponse.json({ error: "Rental not found" }, { status: 404 });
     }
 
-    const customer = await query("SELECT * FROM customers WHERE id = $1", [customerId || rental[0].customer_id]);
+    const customer = await query<CustomerRow>("SELECT * FROM customers WHERE id = $1", [customerId || rental[0].customer_id]);
     if (!customer.length) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
     // Create Stripe customer if doesn't exist
-    let stripeCustomer = await stripe.customers.list({ email: customer[0].email, limit: 1 });
-    if (stripeCustomer.data.length === 0) {
-      stripeCustomer = await stripe.customers.create({
+    const customerList = await stripe.customers.list({ email: customer[0].email, limit: 1 });
+    let stripeCustomerId: string;
+    if (customerList.data.length === 0) {
+      const newCust = await stripe.customers.create({
         email: customer[0].email,
         name: customer[0].name,
         phone: customer[0].phone,
       });
+      stripeCustomerId = newCust.id;
     } else {
-      stripeCustomer = stripeCustomer.data[0];
+      stripeCustomerId = customerList.data[0].id;
     }
 
     // Attach payment method
     await stripe.paymentMethods.attach(paymentMethodId, {
-      customer: stripeCustomer.id,
+      customer: stripeCustomerId,
     });
 
     // Create payment intent
@@ -57,14 +62,14 @@ export async function POST(req: NextRequest) {
     if (recurring) {
       // Setup for recurring payment
       paymentIntent = await stripe.setupIntents.create({
-        customer: stripeCustomer.id,
+        customer: stripeCustomerId,
         payment_method: paymentMethodId,
         confirm: true,
       });
     } else {
       // One-time payment
       paymentIntent = await stripe.paymentIntents.create({
-        customer: stripeCustomer.id,
+        customer: stripeCustomerId,
         amount: Math.round(amount * 100), // Convert to cents
         currency: "aud",
         payment_method: paymentMethodId,
@@ -81,14 +86,14 @@ export async function POST(req: NextRequest) {
         customer[0].id,
         amount,
         "Stripe",
-        paymentIntent.id || paymentIntent.setup_intent,
-        paymentIntent.status === "succeeded" || paymentIntent.status === "processing" ? "paid" : "partial",
+        paymentIntent.id,
+        "status" in paymentIntent && (paymentIntent.status === "succeeded" || paymentIntent.status === "processing") ? "paid" : "partial",
         String(session.sub),
       ]
     );
 
     // Send confirmation email
-    if (paymentIntent.status === "succeeded" || paymentIntent.status === "processing") {
+    if ("status" in paymentIntent && (paymentIntent.status === "succeeded" || paymentIntent.status === "processing")) {
       await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/notifications/email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -120,7 +125,7 @@ export async function PUT(req: NextRequest) {
     const event = stripe.webhooks.constructEvent(
       body,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET ?? ""
     );
 
     // Handle payment intent succeeded
