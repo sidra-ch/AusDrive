@@ -7,7 +7,7 @@ import { notificationsAPI } from './api';
 const isExpoGo = Constants.appOwnership === 'expo';
 
 if (!isExpoGo) {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+   
   const Notifications = require('expo-notifications');
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -79,7 +79,7 @@ class NotificationService {
 
   private async requestPermissions(): Promise<boolean> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const Notifications = require('expo-notifications');
       const { status } = await Notifications.requestPermissionsAsync();
       return status === 'granted';
@@ -91,7 +91,7 @@ class NotificationService {
 
   private async getPushToken(): Promise<string | null> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const Notifications = require('expo-notifications');
       const token = await Notifications.getDevicePushTokenAsync();
       return token.data;
@@ -121,7 +121,7 @@ class NotificationService {
   }
 
   private setupNotificationListeners(): void {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const Notifications = require('expo-notifications');
     Notifications.addNotificationResponseReceivedListener((response: any) => {
       console.log('[Notifications] Notification pressed:', response);
@@ -159,7 +159,7 @@ class NotificationService {
   async sendLocalNotification(notification: PushNotification): Promise<void> {
     if (isExpoGo) return;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const Notifications = require('expo-notifications');
       await Notifications.scheduleNotificationAsync({
         content: {
@@ -181,7 +181,7 @@ class NotificationService {
   ): Promise<string | null> {
     if (isExpoGo) return null;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const Notifications = require('expo-notifications');
       const identifier = await Notifications.scheduleNotificationAsync({
         content: {
@@ -202,7 +202,7 @@ class NotificationService {
   async cancelNotification(identifier: string): Promise<void> {
     if (isExpoGo) return;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const Notifications = require('expo-notifications');
       await Notifications.cancelScheduledNotificationAsync(identifier);
     } catch (error) {
@@ -213,7 +213,7 @@ class NotificationService {
   async getBadgeCount(): Promise<number> {
     if (isExpoGo) return 0;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const Notifications = require('expo-notifications');
       return await Notifications.getBadgeCountAsync();
     } catch (error) {
@@ -225,7 +225,7 @@ class NotificationService {
   async setBadgeCount(count: number): Promise<void> {
     if (isExpoGo) return;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const Notifications = require('expo-notifications');
       await Notifications.setBadgeCountAsync(count);
     } catch (error) {
@@ -236,7 +236,7 @@ class NotificationService {
   async clearAllNotifications(): Promise<void> {
     if (isExpoGo) return;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const Notifications = require('expo-notifications');
       await Notifications.dismissAllNotificationsAsync();
       await this.setBadgeCount(0);

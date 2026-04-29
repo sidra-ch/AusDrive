@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Animated, 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/Colors';
 import { ChevronLeft, Star, Fuel, Gauge, Zap, Users, ShieldCheck, MapPin, Calendar as CalendarIcon, Clock, CreditCard, Banknote } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PricingService, City } from '@/services/pricing';
 import * as Location from 'expo-location';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -39,7 +39,7 @@ export default function CarDetailsScreen() {
   const pricing = PricingService.calculateTotal(basePrice, days, selectedCity);
   const finalTotal = pricing.total + addonTotal;
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     Animated.timing(fadeAnim, {

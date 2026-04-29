@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       return handleCORS(NextResponse.json({ error: "Google account must have an associated email" }, { status: 400 }), req.headers.get("origin") || undefined);
     }
 
-    let users = await query<{
+    const users = await query<{
       id: number; name: string; email: string; role: string; branch: string;
     }>("SELECT * FROM users WHERE email = $1 LIMIT 1", [email.toLowerCase()]);
 

@@ -31,7 +31,7 @@ export default function BookingsScreen() {
   async function loadBookings() {
     try {
       const response = await bookingsAPI.getAll();
-      let serverData = response.data.bookings || [];
+      const serverData = response.data.bookings || [];
       
       const localJson = await AsyncStorage.getItem('local_bookings');
       const localData = localJson ? JSON.parse(localJson) : [];

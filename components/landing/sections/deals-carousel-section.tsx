@@ -20,7 +20,7 @@ export function DealsCarouselSection({ dealsRef, prefersReducedMotion }: DealsCa
         <div>
           <span className="text-xs font-semibold tracking-[0.3em] text-cyan-400 uppercase">Limited Time</span>
           <h2 data-reveal className="mt-3 text-3xl font-bold text-white md:text-4xl">
-            Hot Deals — Book Before They're Gone
+            Hot Deals — Book Before They&apos;re Gone
           </h2>
         </div>
         <Link href="/deals">

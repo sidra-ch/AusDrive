@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Bell, ChevronLeft, Calendar, CreditCard, Car, AlertTriangle, Gift } from 'lucide-react-native';
@@ -12,22 +12,7 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    initializeNotifications();
-  }, []);
-
-  const initializeNotifications = async () => {
-    try {
-      await notificationService.initialize();
-      loadNotifications();
-    } catch (error) {
-      console.error('Failed to initialize notifications:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = async () => {
     try {
       // For now, we'll simulate loading notifications
       // In a real app, this would fetch from an API
@@ -62,6 +47,22 @@ export default function NotificationsScreen() {
     } catch (error) {
       console.error('Failed to load notifications:', error);
     }
+  };
+
+  const initializeNotifications = async () => {
+    try {
+      await notificationService.initialize();
+      loadNotifications();
+    } catch (error) {
+      console.error('Failed to initialize notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    initializeNotifications();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onRefresh = async () => {
@@ -174,7 +175,7 @@ export default function NotificationsScreen() {
           <View style={styles.emptyContainer}>
             <Bell color={Colors.textSecondary} size={48} />
             <Text style={styles.emptyText}>No notifications</Text>
-            <Text style={styles.emptySubtext}>We'll notify you about important updates</Text>
+            <Text style={styles.emptySubtext}>We&apos;ll notify you about important updates</Text>
           </View>
         }
         removeClippedSubviews={true}

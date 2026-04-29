@@ -2,13 +2,13 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CheckCircle2, ArrowRight } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated } from 'react-native';
 
 export default function SuccessScreen() {
   const router = useRouter();
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [scaleAnim] = useState(() => new Animated.Value(0));
+  const [fadeAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     Animated.parallel([

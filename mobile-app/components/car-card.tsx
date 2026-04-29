@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Animated } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { Star, ChevronRight } from 'lucide-react-native';
@@ -17,8 +17,8 @@ interface CarCardProps {
 
 function CarCardComponent({ id, make, model, rate, rating, deals, imageUrl }: CarCardProps) {
   const router = useRouter();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [slideAnim] = useState(() => new Animated.Value(30));
 
   useEffect(() => {
     Animated.parallel([

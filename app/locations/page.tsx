@@ -180,10 +180,10 @@ export default function LocationsPage() {
         <div className="mx-auto max-w-4xl px-4 md:px-6">
           <div className="rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-violet-500/10 p-8 md:p-12 text-center backdrop-blur-xl">
             <h2 className="text-3xl md:text-4xl font-bold text-white">
-              Can't find your location?
+              Can&apos;t find your location?
             </h2>
             <p className="mt-4 text-white/60">
-              Contact us and we'll arrange a pickup from your preferred location.
+              Contact us and we&apos;ll arrange a pickup from your preferred location.
             </p>
             <motion.button
               whileHover={{ scale: 1.05 }}

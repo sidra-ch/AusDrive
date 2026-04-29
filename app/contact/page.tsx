@@ -80,7 +80,7 @@ export default function ContactPage() {
               Get in Touch
             </span>
             <h1 className="mt-6 text-5xl font-bold text-white md:text-6xl lg:text-7xl">
-              We're Here to Help
+              We&apos;re Here to Help
             </h1>
             <p className="mt-4 text-lg text-white/50 md:text-xl max-w-2xl mx-auto">
               Have questions? Our team is ready to assist you with bookings, support, or any inquiries.
@@ -143,7 +143,7 @@ export default function ContactPage() {
                 <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-semibold text-green-400">Message sent successfully!</p>
-                  <p className="text-xs text-green-400/70">We'll get back to you within 2 hours.</p>
+                  <p className="text-xs text-green-400/70">We&apos;ll get back to you within 2 hours.</p>
                 </div>
               </motion.div>
             )}

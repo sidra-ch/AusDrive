@@ -39,7 +39,7 @@ export default function DealsPage() {
               Save on Premium Vehicles
             </h1>
             <p className="mt-4 text-lg text-white/50 md:text-xl max-w-2xl mx-auto">
-              Unbeatable discounts on our most popular cars. Book before they're gone.
+              Unbeatable discounts on our most popular cars. Book before they&apos;re gone.
             </p>
           </motion.div>
         </div>
@@ -197,7 +197,7 @@ export default function DealsPage() {
               </span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-white">
-              These Deals Won't Last Long
+              These Deals Won&apos;t Last Long
             </h2>
             <p className="mt-4 text-white/60">
               Limited inventory at special prices. Book now to secure your preferred vehicle.

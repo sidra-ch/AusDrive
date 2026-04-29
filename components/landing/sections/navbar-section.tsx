@@ -33,7 +33,7 @@ export function NavbarSection({ navBg, navBorder }: NavbarSectionProps) {
           <span className="text-[1.35rem] font-bold tracking-tight text-white">
             Aus<span className="bg-gradient-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent">Drive</span>
           </span>
-          <span className="text-[8px] tracking-[0.28em] text-white/30 uppercase">Australia's Finest Fleet</span>
+          <span className="text-[8px] tracking-[0.28em] text-white/30 uppercase">Australia&apos;s Finest Fleet</span>
         </motion.div>
 
         {/* Desktop nav */}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
+import Stripe from "stripe";
 
 function getStripe() {
   const secretKey = process.env.STRIPE_SECRET_KEY;
@@ -8,7 +9,7 @@ function getStripe() {
     throw new Error("STRIPE_SECRET_KEY is not configured");
   }
 
-  return require("stripe")(secretKey);
+  return new Stripe(secretKey, { apiVersion: "2026-04-22.dahlia" as Parameters<typeof Stripe>[1]["apiVersion"] });
 }
 
 export async function POST(req: NextRequest) {
