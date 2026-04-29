@@ -1,13 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Animated, Alert, TextInput, Modal } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/Colors';
 import { ChevronLeft, Star, Fuel, Gauge, Zap, Users, ShieldCheck, MapPin, Calendar as CalendarIcon, Clock, CreditCard, Banknote } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { PricingService, City } from '@/services/pricing';
 import * as Location from 'expo-location';
 import { useAuthStore } from '@/store/useAuthStore';
-import { bookingsAPI } from '@/services/api';
+import { bookingsAPI, paymentsAPI } from '@/services/api';
 
 export default function CarDetailsScreen() {
   const { id, make, model, rate, image } = useLocalSearchParams();
@@ -56,50 +55,82 @@ export default function CarDetailsScreen() {
     if (step < 4) {
       setStep(step + 1);
     } else {
+      if (!user) {
+        Alert.alert('Not logged in', 'Please log in to make a booking.');
+        return;
+      }
+
       setIsSubmitting(true);
       try {
-        const bookingData = {
-          id: Math.floor(Math.random() * 10000),
-          customer_name: user?.name || 'Guest User',
-          car_make: make,
-          car_model: model,
-          pickup_date: pickupDate,
-          return_date: returnDate,
+        // 1. Create the booking via API — always starts as PENDING
+        const bookingPayload = {
+          car_id: id,
+          pickup_date: `${pickupDate}T${convertTime(pickupTime)}`,
+          return_date: `${returnDate}T${convertTime(returnTime)}`,
           pickup_location: pickupLocation,
-          return_location: returnLocation,
-          total_amount: finalTotal,
-          status: 'confirmed'
+          notes: addons.driver ? 'Pro driver requested' : undefined,
+          payment_method: paymentMethod,
         };
 
-        // Save locally for immediate feedback
-        const existing = await AsyncStorage.getItem('local_bookings');
-        const localBookings = existing ? JSON.parse(existing) : [];
-        localBookings.unshift(bookingData);
-        await AsyncStorage.setItem('local_bookings', JSON.stringify(localBookings));
+        const bookingRes = await bookingsAPI.create(bookingPayload);
+        const booking = bookingRes.data.booking;
 
-        // If not in demo mode, actually try the API
-        if (user?.id !== 'DEMO') {
-          try {
-            await bookingsAPI.create(bookingData);
-          } catch (e) {
-            console.log('API failed, saved locally instead');
-          }
-        } else {
-          await new Promise(r => setTimeout(r, 1000));
+        if (paymentMethod === 'cash') {
+          // Cash payments stay PENDING until admin confirms
+          Alert.alert(
+            'Booking Submitted',
+            `Your reservation for ${make} ${model} is pending admin approval. Please pay at pickup.`,
+            [{ text: 'OK', onPress: () => router.replace('/(tabs)/bookings') }]
+          );
+          return;
         }
 
-        Alert.alert(
-          "Booking Successful",
-          `Your reservation for ${make} ${model} is confirmed!`,
-          [{ text: "OK", onPress: () => router.replace('/(tabs)/bookings') }]
-        );
+        // 2. Card payment — create Stripe PaymentIntent
+        const intentRes = await paymentsAPI.createPaymentIntent({
+          bookingId: String(booking.id),
+          amount: finalTotal,
+          currency: 'aud',
+          metadata: { carMake: make as string, carModel: model as string },
+        });
+
+        const { clientSecret } = intentRes.data;
+
+        if (!clientSecret) {
+          throw new Error('Failed to initialise payment. Please try again.');
+        }
+
+        // 3. Navigate to payment screen with the clientSecret
+        router.push({
+          pathname: '/payment',
+          params: {
+            bookingId: String(booking.id),
+            clientSecret,
+            amount: String(finalTotal),
+            make: make as string,
+            model: model as string,
+          },
+        });
       } catch (err: any) {
-        Alert.alert("Error", "Something went wrong saving your booking.");
+        const message =
+          err?.response?.data?.error ||
+          err?.message ||
+          'Something went wrong. Please try again.';
+        Alert.alert('Booking Error', message);
       } finally {
         setIsSubmitting(false);
       }
     }
   };
+
+  // Convert "10:00 AM" → "10:00:00" for ISO timestamp
+  function convertTime(timeStr: string): string {
+    const [time, period] = timeStr.split(' ');
+    const [hourStr, minuteStr] = time.split(':');
+    let hour = parseInt(hourStr, 10);
+    if (period === 'PM' && hour !== 12) hour += 12;
+    if (period === 'AM' && hour === 12) hour = 0;
+    return `${String(hour).padStart(2, '0')}:${minuteStr}:00`;
+  }
 
   const prevStep = () => {
     if (step > 1) setStep(step - 1);

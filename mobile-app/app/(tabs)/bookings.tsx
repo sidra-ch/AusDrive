@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ScrollView } from 'react-native';
 import { format } from 'date-fns';
 import { bookingsAPI } from '@/services/api';
 import { Colors } from '@/constants/Colors';
 import { CustomHeader } from '@/components/custom-header';
 import { SkeletonLoader } from '@/components/skeleton-loader';
-import { useAuthStore } from '@/store/useAuthStore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Booking = {
   id: number;
@@ -23,43 +22,21 @@ export default function BookingsScreen() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadBookings();
   }, []);
 
   async function loadBookings() {
+    setError(null);
     try {
       const response = await bookingsAPI.getAll();
-      const serverData = response.data.bookings || [];
-      
-      const localJson = await AsyncStorage.getItem('local_bookings');
-      const localData = localJson ? JSON.parse(localJson) : [];
-      
-      // Merge: Local first, then server
-      let combined = [...localData, ...serverData];
-      
-      // Inject demo booking if in demo mode and empty
-      const { user } = useAuthStore.getState();
-      if (user?.id === 'DEMO' && combined.length === 0) {
-        combined = [{
-            id: 10293,
-            customer_name: 'Demo User',
-            car_make: 'Tesla',
-            car_model: 'Model 3',
-            pickup_date: new Date().toISOString(),
-            return_date: new Date(Date.now() + 86400000 * 3).toISOString(),
-            status: 'confirmed',
-            total_amount: 450
-        }];
-      }
-      
-      setBookings(combined);
-    } catch (error) {
-      console.error('Failed to load bookings:', error);
-      const localJson = await AsyncStorage.getItem('local_bookings');
-      const localData = localJson ? JSON.parse(localJson) : [];
-      setBookings(localData);
+      setBookings(response.data.bookings || []);
+    } catch (err: any) {
+      const message = err?.response?.data?.error || err?.message || 'Failed to load bookings';
+      console.error('[Bookings] Load failed:', message);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -72,15 +49,18 @@ export default function BookingsScreen() {
   }
 
   function getStatusColor(status: string) {
-    switch (status) {
-      case 'confirmed': return Colors.success;
-      case 'pending': return Colors.warning;
-      case 'cancelled': return Colors.danger;
+    const s = status?.toUpperCase();
+    switch (s) {
+      case 'CONFIRMED': return Colors.success;
+      case 'PENDING': return Colors.warning;
+      case 'CANCELLED': return Colors.danger;
+      case 'ACTIVE': return Colors.primary;
+      case 'COMPLETED': return Colors.textSecondary;
       default: return Colors.textSecondary;
     }
   }
 
-  function renderBooking({ item }: { item: Booking }) {
+  const BookingCard = React.memo(function BookingCard({ item }: { item: Booking }) {
     return (
       <TouchableOpacity style={styles.bookingCard}>
         <View style={styles.bookingHeader}>
@@ -89,16 +69,18 @@ export default function BookingsScreen() {
           </View>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
             <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-              {item.status}
+              {item.status?.toUpperCase()}
             </Text>
           </View>
         </View>
 
         <View style={styles.bookingInfo}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoIcon}>👤</Text>
-            <Text style={styles.infoText}>{item.customer_name}</Text>
-          </View>
+          {item.customer_name ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoIcon}>👤</Text>
+              <Text style={styles.infoText}>{item.customer_name}</Text>
+            </View>
+          ) : null}
           <View style={styles.infoRow}>
             <Text style={styles.infoIcon}>🚗</Text>
             <Text style={styles.infoText}>{item.car_make} {item.car_model}</Text>
@@ -106,22 +88,25 @@ export default function BookingsScreen() {
           <View style={styles.infoRow}>
             <Text style={styles.infoIcon}>🕐</Text>
             <Text style={styles.infoText}>
-              {item.pickup_date ? format(new Date(item.pickup_date), 'MMM d') : 'N/A'} - {item.return_date ? format(new Date(item.return_date), 'MMM d, yyyy') : 'N/A'}
+              {item.pickup_date ? format(new Date(item.pickup_date), 'MMM d') : 'N/A'} -{' '}
+              {item.return_date ? format(new Date(item.return_date), 'MMM d, yyyy') : 'N/A'}
             </Text>
           </View>
         </View>
 
-        <View style={styles.bookingFooter}>
-          <Text style={styles.amountLabel}>Total Amount</Text>
-          <Text style={styles.amountValue}>${parseFloat(String(item.total_amount)).toFixed(2)}</Text>
-        </View>
+        {item.total_amount != null && (
+          <View style={styles.bookingFooter}>
+            <Text style={styles.amountLabel}>Total Amount</Text>
+            <Text style={styles.amountValue}>${parseFloat(String(item.total_amount)).toFixed(2)}</Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
-  }
+  });
 
   return (
     <View style={styles.container}>
-      <CustomHeader title="Bookings" />
+      <CustomHeader title="My Bookings" />
 
       {loading ? (
         <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
@@ -131,10 +116,18 @@ export default function BookingsScreen() {
             </View>
           ))}
         </ScrollView>
+      ) : error ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyIcon}>⚠️</Text>
+          <Text style={styles.emptyText}>{error}</Text>
+          <TouchableOpacity onPress={loadBookings} style={styles.retryBtn}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <FlatList
           data={bookings}
-          renderItem={renderBooking}
+          renderItem={({ item }) => <BookingCard item={item} />}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.list}
           refreshControl={
@@ -182,6 +175,7 @@ const styles = StyleSheet.create({
     gap: 12,
     borderWidth: 1,
     borderColor: Colors.border,
+    marginBottom: 12,
   },
   bookingHeader: {
     flexDirection: 'row',
@@ -254,5 +248,17 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: Colors.textSecondary,
+  },
+  retryBtn: {
+    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });
