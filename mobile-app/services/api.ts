@@ -14,6 +14,8 @@ export interface AuthUser {
 export interface AuthResponse {
   user: AuthUser;
   token: string;
+  accessToken?: string;
+  refreshToken?: string;
 }
 
 const getDefaultApiUrl = () => {
@@ -38,6 +40,8 @@ const getDefaultApiUrl = () => {
 
 export const API_URL = getDefaultApiUrl();
 
+console.log(`[API] Using base URL: ${API_URL}`);
+
 const api = axios.create({
   baseURL: API_URL,
   timeout: 15000,
@@ -45,6 +49,40 @@ const api = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    const refreshToken = await SecureStore.getItemAsync("secure_refresh_token");
+    if (!refreshToken) return null;
+
+    try {
+      const response = await api.post<AuthResponse>("/api/auth/refresh", { refreshToken });
+      const newAccessToken = response.data.accessToken || response.data.token;
+      const newRefreshToken = response.data.refreshToken;
+
+      if (newAccessToken) {
+        await SecureStore.setItemAsync("secure_auth_token", newAccessToken);
+      }
+      if (newRefreshToken) {
+        await SecureStore.setItemAsync("secure_refresh_token", newRefreshToken);
+      }
+
+      return newAccessToken ?? null;
+    } catch {
+      return null;
+    }
+  })();
+
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+  }
+}
 
 const resolveAuthFallbackPath = (path: string) => {
   if (path.startsWith('/api/auth/')) {
@@ -93,10 +131,36 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    const status = error?.response?.status;
+    const method = error?.config?.method?.toUpperCase?.() || 'REQUEST';
+    const url = error?.config?.url || 'unknown-url';
+    const message = error?.response?.data?.error || error?.message;
+
+    if (status) {
+      console.warn(`[API] ${method} ${url} failed (${status}): ${message}`);
+    } else {
+      console.warn(`[API] ${method} ${url} failed: ${message}`);
+    }
+
     if (error.response && error.response.status === 401) {
-      // Logic for 401: clear token and theoretically invoke logout from zustand.
-      // This is handled defensively here and properly executed in authStore.
+      const originalRequest = (error.config || {}) as any;
+      const shouldTryRefresh =
+        !originalRequest._retry &&
+        !String(originalRequest.url || "").includes("/api/auth/login") &&
+        !String(originalRequest.url || "").includes("/api/auth/refresh");
+
+      if (shouldTryRefresh) {
+        originalRequest._retry = true;
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        }
+      }
+
       await SecureStore.deleteItemAsync("secure_auth_token");
+      await SecureStore.deleteItemAsync("secure_refresh_token");
     }
     return Promise.reject(error);
   }
@@ -158,6 +222,11 @@ export const authAPI = {
   me: () => authRequestWithFallback<{ user: AuthUser }>('get', '/api/auth/me'),
   google: (idToken: string) => authRequestWithFallback<AuthResponse>('post', '/api/auth/google', { idToken }),
   apple: (identityToken: string, fullName?: any) => authRequestWithFallback<AuthResponse>('post', '/api/auth/apple', { identityToken, fullName }),
+  sendOtp: (phone: string, channel: 'sms' | 'whatsapp' = 'sms') =>
+    authRequestWithFallback('post', '/api/auth/send-otp', { phone, channel }),
+  verifyOtp: (data: { phone: string; code: string; name?: string; email?: string }) =>
+    authRequestWithFallback<AuthResponse>('post', '/api/auth/verify-otp', data),
+  refresh: (refreshToken: string) => authRequestWithFallback<AuthResponse>('post', '/api/auth/refresh', { refreshToken }),
 };
 
 export const pricingAPI = {

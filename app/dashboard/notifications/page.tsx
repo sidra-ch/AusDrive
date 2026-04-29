@@ -98,9 +98,9 @@ export default function NotificationsPage() {
             <div className="space-y-3">
               {[
                 { label: "Email (SendGrid)", enabled: !!process.env.NEXT_PUBLIC_HAS_SENDGRID },
-                { label: "SMS (Twilio)", enabled: false },
+                { label: "SMS (Twilio)", enabled: !!process.env.NEXT_PUBLIC_HAS_TWILIO_SMS },
                 { label: "Push (Firebase)", enabled: false },
-                { label: "WhatsApp", enabled: false },
+                { label: "WhatsApp", enabled: !!process.env.NEXT_PUBLIC_HAS_TWILIO_WHATSAPP },
               ].map((ch) => (
                 <div key={ch.label} className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">{ch.label}</span>

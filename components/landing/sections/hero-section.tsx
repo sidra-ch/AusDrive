@@ -9,6 +9,7 @@ import type { RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { locationOptions } from "@/lib/landing-data";
 import { SearchableSelect } from "@/components/shared/searchable-select";
+import { useTheme } from "@/components/theme-provider";
 
 type HeroSectionProps = {
   heroRef: RefObject<HTMLElement | null>;
@@ -23,6 +24,8 @@ const stagger = {
 
 export function HeroSection({ heroRef, heroParallax }: HeroSectionProps) {
   const router = useRouter();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [form, setForm] = useState({
     location: "Sydney",
     pickupDate: "",
@@ -106,10 +109,24 @@ export function HeroSection({ heroRef, heroParallax }: HeroSectionProps) {
     router.push(`/cars?${params.toString()}`);
   }
 
+  const shellClass = isDark
+    ? "rounded-xl border border-white/10 bg-[#06071a]/75 p-3.5 md:p-4"
+    : "rounded-xl border border-slate-200 bg-white/90 p-3.5 md:p-4";
+
+  const labelClass = isDark
+    ? "mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-white/40"
+    : "mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500";
+
+  const inputClass = isDark
+    ? "w-full bg-transparent text-sm font-medium text-white outline-none"
+    : "w-full bg-transparent text-sm font-medium text-slate-900 outline-none";
+
   return (
     <section
       ref={heroRef}
-      className="relative flex min-h-screen flex-col overflow-hidden bg-[#06071a]"
+      className={`relative flex min-h-screen flex-col overflow-hidden ${
+        isDark ? "bg-[#06071a]" : "bg-slate-100"
+      }`}
       style={{ paddingTop: "72px" }}
     >
       {/* Cinematic car video background */}
@@ -131,9 +148,27 @@ export function HeroSection({ heroRef, heroParallax }: HeroSectionProps) {
             type="video/mp4"
           />
         </video>
-        <div className="absolute inset-0 bg-gradient-to-r from-[#06071a]/90 via-[#06071a]/55 to-[#06071a]/20" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#06071a] via-transparent to-[#06071a]/40" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_70%_50%,rgba(99,60,241,0.12),transparent)]" />
+        <div
+          className={`absolute inset-0 ${
+            isDark
+              ? "bg-gradient-to-r from-[#06071a]/90 via-[#06071a]/55 to-[#06071a]/20"
+              : "bg-gradient-to-r from-slate-100/90 via-slate-100/70 to-slate-100/50"
+          }`}
+        />
+        <div
+          className={`absolute inset-0 ${
+            isDark
+              ? "bg-gradient-to-t from-[#06071a] via-transparent to-[#06071a]/40"
+              : "bg-gradient-to-t from-slate-100 via-transparent to-slate-100/60"
+          }`}
+        />
+        <div
+          className={`absolute inset-0 ${
+            isDark
+              ? "bg-[radial-gradient(ellipse_60%_50%_at_70%_50%,rgba(99,60,241,0.12),transparent)]"
+              : "bg-[radial-gradient(ellipse_60%_50%_at_70%_50%,rgba(56,189,248,0.18),transparent)]"
+          }`}
+        />
       </motion.div>
 
       {/* Grain texture */}
@@ -173,7 +208,11 @@ export function HeroSection({ heroRef, heroParallax }: HeroSectionProps) {
           <motion.h1
             variants={stagger.item}
             transition={{ duration: 0.7, ease: "easeOut" }}
-            className="text-[2.2rem] font-bold leading-[1.04] tracking-tight text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)] sm:text-[2.8rem] md:text-[3.6rem] xl:text-[4.8rem]"
+            className={`text-[2.2rem] font-bold leading-[1.04] tracking-tight sm:text-[2.8rem] md:text-[3.6rem] xl:text-[4.8rem] ${
+              isDark
+                ? "text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)]"
+                : "text-slate-900 drop-shadow-[0_2px_20px_rgba(255,255,255,0.55)]"
+            }`}
           >
             <span className="relative inline-block">
               <span className="bg-gradient-to-r from-cyan-400 via-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
@@ -187,13 +226,17 @@ export function HeroSection({ heroRef, heroParallax }: HeroSectionProps) {
               />
             </span>
             <br />
-            <span className="text-white/90">Premium Car Rental</span>
+            <span className={isDark ? "text-white/90" : "text-slate-800"}>Premium Car Rental</span>
           </motion.h1>
 
           <motion.p
             variants={stagger.item}
             transition={{ duration: 0.7, ease: "easeOut" }}
-            className="max-w-lg text-xl leading-relaxed text-white/60 drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]"
+            className={`max-w-lg text-xl leading-relaxed ${
+              isDark
+                ? "text-white/60 drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]"
+                : "text-slate-700"
+            }`}
           >
             Australia&apos;s most trusted fleet — 1,200+ vehicles, 60+ locations, instant booking.
           </motion.p>
@@ -204,7 +247,14 @@ export function HeroSection({ heroRef, heroParallax }: HeroSectionProps) {
               <span className="relative z-10">Book Now</span>
               <span className="absolute inset-0 bg-gradient-to-r from-violet-500 to-cyan-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
             </Button>
-            <Button variant="outline" className="rounded-full border-white/20 bg-black/30 px-10 py-3.5 text-base text-white backdrop-blur hover:border-white/40 hover:bg-black/50">
+            <Button
+              variant="outline"
+              className={`rounded-full px-10 py-3.5 text-base backdrop-blur ${
+                isDark
+                  ? "border-white/20 bg-black/30 text-white hover:border-white/40 hover:bg-black/50"
+                  : "border-slate-300 bg-white/80 text-slate-900 hover:border-slate-400 hover:bg-white"
+              }`}
+            >
               View Fleet
             </Button>
           </motion.div>
@@ -221,10 +271,12 @@ export function HeroSection({ heroRef, heroParallax }: HeroSectionProps) {
                 key={b.label}
                 animate={{ y: [0, -4, 0] }}
                 transition={{ duration: 3 + i * 0.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }}
-                className="flex items-center gap-2 rounded-2xl border border-white/12 bg-black/35 px-4 py-2 backdrop-blur-md"
+                className={`flex items-center gap-2 rounded-2xl px-4 py-2 backdrop-blur-md ${
+                  isDark ? "border border-white/12 bg-black/35" : "border border-slate-200 bg-white/85"
+                }`}
               >
-                <p className="text-base font-bold text-white">{b.label}</p>
-                <p className="text-xs text-white/40">{b.sub}</p>
+                <p className={`text-base font-bold ${isDark ? "text-white" : "text-slate-900"}`}>{b.label}</p>
+                <p className={`text-xs ${isDark ? "text-white/40" : "text-slate-500"}`}>{b.sub}</p>
               </motion.div>
             ))}
           </motion.div>
@@ -237,18 +289,32 @@ export function HeroSection({ heroRef, heroParallax }: HeroSectionProps) {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 1, ease: "easeOut" }}
-          className="overflow-visible rounded-2xl border border-white/12 bg-black/55 shadow-[0_24px_80px_rgba(0,0,0,0.7)] backdrop-blur-2xl md:rounded-3xl"
+          className={`overflow-visible rounded-2xl backdrop-blur-2xl md:rounded-3xl ${
+            isDark
+              ? "border border-white/12 bg-black/55 shadow-[0_24px_80px_rgba(0,0,0,0.7)]"
+              : "border border-slate-200 bg-white/80 shadow-[0_24px_80px_rgba(15,23,42,0.15)]"
+          }`}
         >
           {/* Header strip — desktop only */}
-          <div className="hidden items-center gap-2 border-b border-white/8 px-5 py-2.5 md:flex">
+          <div
+            className={`hidden items-center gap-2 px-5 py-2.5 md:flex ${
+              isDark ? "border-b border-white/8" : "border-b border-slate-200"
+            }`}
+          >
             <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="text-[10px] font-bold tracking-[0.3em] text-white/35 uppercase">Find Your Perfect Ride</span>
+            <span
+              className={`text-[10px] font-bold tracking-[0.3em] uppercase ${
+                isDark ? "text-white/35" : "text-slate-500"
+              }`}
+            >
+              Find Your Perfect Ride
+            </span>
           </div>
 
-          <form onSubmit={handleSearch} className="bg-white/8 p-3 md:p-4">
+          <form onSubmit={handleSearch} className={`p-3 md:p-4 ${isDark ? "bg-white/8" : "bg-slate-50/70"}`}>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
-              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.1 }} className="rounded-xl border border-white/10 bg-[#06071a]/75 p-3.5 md:p-4 lg:col-span-2">
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">Where</label>
+              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.1 }} className={`${shellClass} lg:col-span-2`}>
+                <label className={labelClass}>Where</label>
                 <SearchableSelect
                   value={form.location}
                   onChange={(val) => updateForm("location", val)}
@@ -257,61 +323,67 @@ export function HeroSection({ heroRef, heroParallax }: HeroSectionProps) {
                 />
               </motion.div>
 
-              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.16 }} className="rounded-xl border border-white/10 bg-[#06071a]/75 p-3.5 md:p-4">
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">Pickup Date</label>
+              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.16 }} className={shellClass}>
+                <label className={labelClass}>Pickup Date</label>
                 <input
                   type="date"
                   min={today}
                   value={form.pickupDate}
                   onChange={(e) => updateForm("pickupDate", e.target.value)}
-                  className="w-full bg-transparent text-sm font-medium text-white outline-none"
+                  className={inputClass}
+                  style={{ colorScheme: "dark" }}
                 />
               </motion.div>
 
-              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.22 }} className="rounded-xl border border-white/10 bg-[#06071a]/75 p-3.5 md:p-4">
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">Pickup Time</label>
+              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.22 }} className={shellClass}>
+                <label className={labelClass}>Pickup Time</label>
                 <input
                   type="time"
                   value={form.pickupTime}
                   onChange={(e) => updateForm("pickupTime", e.target.value)}
-                  className="w-full bg-transparent text-sm font-medium text-white outline-none"
+                  className={inputClass}
+                  style={{ colorScheme: "dark" }}
                 />
               </motion.div>
 
-              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.28 }} className="rounded-xl border border-white/10 bg-[#06071a]/75 p-3.5 md:p-4">
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">Return Date</label>
+              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.28 }} className={shellClass}>
+                <label className={labelClass}>Return Date</label>
                 <input
                   type="date"
                   min={form.pickupDate || today}
                   value={form.returnDate}
                   onChange={(e) => updateForm("returnDate", e.target.value)}
-                  className="w-full bg-transparent text-sm font-medium text-white outline-none"
+                  className={inputClass}
+                  style={{ colorScheme: "dark" }}
                 />
               </motion.div>
 
-              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.34 }} className="rounded-xl border border-white/10 bg-[#06071a]/75 p-3.5 md:p-4">
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">Return Time</label>
+              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.34 }} className={shellClass}>
+                <label className={labelClass}>Return Time</label>
                 <input
                   type="time"
                   value={form.returnTime}
                   onChange={(e) => updateForm("returnTime", e.target.value)}
-                  className="w-full bg-transparent text-sm font-medium text-white outline-none"
+                  className={inputClass}
+                  style={{ colorScheme: "dark" }}
                 />
               </motion.div>
 
-              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.4 }} className="rounded-xl border border-white/10 bg-[#06071a]/75 p-3.5 md:p-4">
-                <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">Vehicle</label>
+              <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 1.4 }} className={shellClass}>
+                <label className={labelClass}>Vehicle</label>
                 <select
                   value={form.carType}
                   onChange={(e) => updateForm("carType", e.target.value)}
-                  className="w-full rounded-md bg-white/5 px-3 py-2 text-[15px] font-semibold leading-6 text-white outline-none"
+                  className={`w-full rounded-md px-3 py-2 text-[15px] font-semibold leading-6 outline-none ${
+                    isDark ? "bg-white/5 text-white" : "bg-slate-100 text-slate-900"
+                  }`}
                 >
-                  <option value="all" className="bg-[#0a0b1e] text-white">All Types</option>
-                  <option value="Economy" className="bg-[#0a0b1e] text-white">Economy</option>
-                  <option value="SUV" className="bg-[#0a0b1e] text-white">SUV</option>
-                  <option value="Luxury" className="bg-[#0a0b1e] text-white">Luxury</option>
-                  <option value="People Mover" className="bg-[#0a0b1e] text-white">People Mover</option>
-                  <option value="Convertible" className="bg-[#0a0b1e] text-white">Convertible</option>
+                  <option value="all" className={isDark ? "bg-[#0a0b1e] text-white" : "bg-white text-slate-900"}>All Types</option>
+                  <option value="Economy" className={isDark ? "bg-[#0a0b1e] text-white" : "bg-white text-slate-900"}>Economy</option>
+                  <option value="SUV" className={isDark ? "bg-[#0a0b1e] text-white" : "bg-white text-slate-900"}>SUV</option>
+                  <option value="Luxury" className={isDark ? "bg-[#0a0b1e] text-white" : "bg-white text-slate-900"}>Luxury</option>
+                  <option value="People Mover" className={isDark ? "bg-[#0a0b1e] text-white" : "bg-white text-slate-900"}>People Mover</option>
+                  <option value="Convertible" className={isDark ? "bg-[#0a0b1e] text-white" : "bg-white text-slate-900"}>Convertible</option>
                 </select>
               </motion.div>
             </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { handleCORS, handleOPTIONS } from "@/lib/cors";
-import { prisma } from "@/lib/prisma";
+import { query, queryOne } from "@/lib/db";
 
 export async function OPTIONS(req: NextRequest) {
   return handleOPTIONS(req.headers.get("origin") || undefined);
@@ -16,80 +16,83 @@ export async function GET(req: NextRequest) {
     const carId = searchParams.get('carId');
 
     if (carId) {
-      // Get specific car's latest GPS position
-      const car = await prisma.car.findUnique({
-        where: { id: carId },
-        select: {
-          id: true,
-          make: true,
-          model: true,
-          latitude: true,
-          longitude: true,
-          lastGpsUpdate: true
-        }
-      });
+      // Get specific car's latest GPS position from live table
+      const car = await queryOne<{
+        id: number;
+        make: string;
+        model: string;
+        plate: string;
+        car_status: string;
+        colour: string | null;
+        imei: string | null;
+        lat: number | null;
+        lng: number | null;
+        speed_kmh: number;
+        ignition_on: boolean;
+        fuel_level_percent: number | null;
+        updated_at: string;
+      }>(
+        `SELECT
+          c.id,
+          c.make,
+          c.model,
+          c.plate,
+          c.status AS car_status,
+          c.colour,
+          c.gps_imei AS imei,
+          gl.lat,
+          gl.lng,
+          COALESCE(gl.speed, 0) AS speed_kmh,
+          COALESCE(gl.ignition, false) AS ignition_on,
+          gl.fuel_level AS fuel_level_percent,
+          COALESCE(gl.updated_at, NOW()) AS updated_at
+        FROM cars c
+        LEFT JOIN gps_live gl ON gl.car_id = c.id
+        WHERE c.id = $1`,
+        [Number(carId)]
+      );
 
       if (!car) {
         return handleCORS(NextResponse.json({ error: 'Car not found' }, { status: 404 }), req.headers.get("origin") || undefined);
       }
 
       // Get recent GPS logs for this car
-      const recentLogs = await prisma.gPSLog.findMany({
-        where: { carId },
-        orderBy: { timestamp: 'desc' },
-        take: 10,
-        select: {
-          latitude: true,
-          longitude: true,
-          speed: true,
-          heading: true,
-          timestamp: true
-        }
-      });
+      const recentLogs = await query(
+        `SELECT lat AS latitude, lng AS longitude, speed, heading, recorded_at AS timestamp
+         FROM gps_tracking
+         WHERE car_id = $1
+         ORDER BY recorded_at DESC
+         LIMIT 10`,
+        [Number(carId)]
+      );
 
       return handleCORS(NextResponse.json({
         car,
         recentLogs,
-        hasLiveGPS: !!car.latitude && !!car.longitude
+        hasLiveGPS: car.lat !== null && car.lng !== null
       }), req.headers.get("origin") || undefined);
     } else {
-      // Get all cars with their latest GPS positions
-      const cars = await prisma.car.findMany({
-        where: {
-          isAvailable: true // Only available cars
-        },
-        select: {
-          id: true,
-          make: true,
-          model: true,
-          latitude: true,
-          longitude: true,
-          lastGpsUpdate: true,
-          dailyRate: true,
-          rating: true,
-          deals: true,
-          imageUrl: true
-        },
-        orderBy: { lastGpsUpdate: 'desc' }
-      });
-
-      // Filter cars that have GPS data
-      const carsWithGPS = cars.filter((car: any) => car.latitude && car.longitude);
-
-      const tracking = carsWithGPS.map((car: any) => ({
-        id: car.id,
-        make: car.make,
-        model: car.model,
-        lat: car.latitude,
-        lng: car.longitude,
-        speed_kmh: 0, // Will be updated by socket.io
-        fuel_level_percent: null, // Will be updated by socket.io
-        lastGpsUpdate: car.lastGpsUpdate,
-        dailyRate: car.dailyRate,
-        rating: car.rating,
-        deals: car.deals,
-        imageUrl: car.imageUrl
-      }));
+      // Return all cars that have a gps_live row (real coordinates available)
+      const tracking = await query(
+        `SELECT
+          c.id,
+          c.id AS car_id,
+          c.make,
+          c.model,
+          c.plate,
+          c.status AS car_status,
+          c.colour,
+          c.gps_imei AS imei,
+          gl.lat,
+          gl.lng,
+          COALESCE(gl.speed, 0) AS speed_kmh,
+          COALESCE(gl.ignition, false) AS ignition_on,
+          gl.fuel_level AS fuel_level_percent,
+          COALESCE(gl.updated_at, NOW()) AS updated_at
+        FROM gps_live gl
+        JOIN cars c ON c.id = gl.car_id
+        ORDER BY gl.updated_at DESC`
+      );
 
       return handleCORS(NextResponse.json({ tracking }), req.headers.get("origin") || undefined);
     }
@@ -105,9 +108,9 @@ export async function POST(req: NextRequest) {
     if (!session) return handleCORS(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), req.headers.get("origin") || undefined);
 
     const body = await req.json();
-    const { carId, latitude, longitude, speed, heading } = body;
+    const { carId, latitude, longitude, speed, heading, ignitionOn, fuelLevelPercent } = body;
 
-    if (!carId || !latitude || !longitude) {
+    if (!carId || latitude === undefined || longitude === undefined) {
       return handleCORS(NextResponse.json(
         { error: 'Missing required fields: carId, latitude, longitude' },
         { status: 400 }
@@ -123,32 +126,27 @@ export async function POST(req: NextRequest) {
       ), req.headers.get("origin") || undefined);
     }
 
-    // Update car's current position
-    const updatedCar = await prisma.car.update({
-      where: { id: carId },
-      data: {
-        latitude,
-        longitude,
-        lastGpsUpdate: new Date()
-      }
-    });
+    await query(
+      `INSERT INTO gps_tracking (car_id, lat, lng, speed, heading, ignition, fuel_level, recorded_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())`,
+      [Number(carId), latitude, longitude, speed ?? 0, heading ?? 0, ignitionOn ?? false, fuelLevelPercent ?? null]
+    );
 
-    // Store GPS log
-    const gpsLog = await prisma.gPSLog.create({
-      data: {
-        carId,
-        latitude,
-        longitude,
-        speed: speed || 0,
-        heading: heading || 0,
-        timestamp: new Date()
-      }
-    });
+    await query(
+      `INSERT INTO gps_live (car_id, lat, lng, speed, ignition, fuel_level, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,NOW())
+       ON CONFLICT (car_id) DO UPDATE SET
+         lat = EXCLUDED.lat,
+         lng = EXCLUDED.lng,
+         speed = EXCLUDED.speed,
+         ignition = EXCLUDED.ignition,
+         fuel_level = EXCLUDED.fuel_level,
+         updated_at = NOW()`,
+      [Number(carId), latitude, longitude, speed ?? 0, ignitionOn ?? false, fuelLevelPercent ?? null]
+    );
 
     return handleCORS(NextResponse.json({
-      success: true,
-      car: updatedCar,
-      gpsLog
+      success: true
     }), req.headers.get("origin") || undefined);
   } catch (error) {
     console.error('[GPS API] Error updating GPS:', error);

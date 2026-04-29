@@ -1,54 +1,82 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform, KeyboardAvoidingView } from 'react-native';
 import { Colors } from '@/constants/Colors';
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react-native';
+import { Eye, EyeOff, Mail, Lock, Phone } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/useAuthStore';
 import { authAPI } from '@/services/api';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import Constants from 'expo-constants';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { setAuth } = useAuthStore();
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '', phone: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => setAppleAvailable(false));
+    }
+  }, []);
+
+  const redirectUri = makeRedirectUri();
+
+  const [googleRequest, googleResponse, promptGoogle] = Google.useAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    redirectUri,
+    responseType: "id_token",
+    scopes: ["openid", "profile", "email"],
+  });
 
   const normalizeUser = (user: any) => ({
     ...user,
     id: String(user?.id ?? ''),
   });
 
+  useEffect(() => {
+    const processGoogleResponse = async () => {
+      if (googleResponse?.type !== 'success') return;
+
+      const idToken = googleResponse.params?.id_token || googleResponse.authentication?.idToken;
+      if (!idToken) {
+        Alert.alert('Google Login Failed', 'No ID token returned from Google');
+        return;
+      }
+
+      await handleOAuthLogin('google', idToken);
+    };
+
+    void processGoogleResponse();
+  }, [googleResponse]);
+
   const handleGoogleLogin = async () => {
-    if (isExpoGo) {
-      Alert.alert(
-        'Expo Go Limitation',
-        'Google Sign-In requires the installed APK build. Use email/password to sign in here, or install the APK for full Google Sign-In support.'
-      );
+    if (!googleRequest) {
+      Alert.alert('Google Login', 'Google auth is not ready yet. Please try again.');
       return;
     }
+
+    if (isExpoGo) {
+      Alert.alert('Google Login', 'Expo Go can open Google auth, but a dev build is recommended for stable deep-linking.');
+    }
+
     setLoading(true);
     try {
-      const { GoogleSignin, statusCodes } = require('@react-native-google-signin/google-signin');
-      GoogleSignin.configure({
-        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-        iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-        offlineAccess: true,
-      });
-      await GoogleSignin.hasPlayServices();
-      await GoogleSignin.signIn();
-      const tokens = await GoogleSignin.getTokens();
-      const idToken = tokens.idToken;
-      if (!idToken) throw new Error('No ID token returned from Google');
-      await handleOAuthLogin('google', idToken);
+      await promptGoogle();
     } catch (err: any) {
-      const { statusCodes } = require('@react-native-google-signin/google-signin');
-      if (err?.code !== statusCodes?.SIGN_IN_CANCELLED && err?.code !== 2) {
-        Alert.alert('Google Login Failed', err.message);
-      }
+      Alert.alert('Google Login Failed', err.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
@@ -63,9 +91,9 @@ export default function LoginScreen() {
       } else {
         res = await authAPI.apple(token, fullName);
       }
-      const { user, token: authToken } = res.data;
+      const { user, token: authToken, refreshToken } = res.data;
       if (!authToken) throw new Error('No token received from server');
-      await setAuth(normalizeUser(user), authToken);
+      await setAuth(normalizeUser(user), authToken, refreshToken || null);
       router.replace('/(tabs)');
     } catch (err: any) {
       Alert.alert('Login Failed', err.response?.data?.error || err.message);
@@ -75,6 +103,13 @@ export default function LoginScreen() {
   };
 
   const handleAppleLogin = async () => {
+    if (!appleAvailable) {
+      Alert.alert(
+        'Apple Sign In Unavailable',
+        'Apple Sign In requires a development build. It is not supported in Expo Go.'
+      );
+      return;
+    }
     try {
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
@@ -82,9 +117,11 @@ export default function LoginScreen() {
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
-      
+
       if (credential.identityToken) {
-        handleOAuthLogin('apple', credential.identityToken, credential.fullName);
+        await handleOAuthLogin('apple', credential.identityToken, credential.fullName);
+      } else {
+        Alert.alert('Apple Login Failed', 'No identity token returned from Apple.');
       }
     } catch (e: any) {
       if (e.code !== 'ERR_REQUEST_CANCELED') {
@@ -102,11 +139,11 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const res = await authAPI.login(form.email, form.password);
-      const { user, token } = res.data;
+      const { user, token, refreshToken } = res.data;
 
       if (!token) throw new Error('No token received from server');
 
-      await setAuth(normalizeUser(user), token);
+      await setAuth(normalizeUser(user), token, refreshToken || null);
       router.replace('/(tabs)');
     } catch (error: any) {
       Alert.alert('Login Failed', error.response?.data?.error || error.message);
@@ -115,8 +152,29 @@ export default function LoginScreen() {
     }
   };
 
+  const handleSendOtp = async () => {
+    if (!form.phone) {
+      Alert.alert('Phone Required', 'Please enter your phone number with country code.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authAPI.sendOtp(form.phone, 'sms');
+      router.push({ pathname: '/(auth)/otp', params: { phone: form.phone } });
+    } catch (error: any) {
+      Alert.alert('OTP Failed', error.response?.data?.error || error.message || 'Could not send OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: Colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
         <Text style={styles.title}>Welcome back.</Text>
         <Text style={styles.subtitle}>Sign in to your AusDrive Premium account.</Text>
@@ -174,6 +232,27 @@ export default function LoginScreen() {
             <Text style={styles.loginBtnText}>Sign In</Text>
           )}
         </TouchableOpacity>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Phone OTP Login</Text>
+          <View style={styles.inputContainer}>
+            <Phone size={20} color={Colors.textSecondary} />
+            <TextInput
+              style={styles.input}
+              placeholder="+61400000000"
+              keyboardType="phone-pad"
+              value={form.phone}
+              onChangeText={(text) => setForm({ ...form, phone: text })}
+            />
+          </View>
+          <TouchableOpacity
+            style={[styles.secondaryBtn, loading && styles.loginBtnDisabled]}
+            onPress={handleSendOtp}
+            disabled={loading}
+          >
+            <Text style={styles.secondaryBtnText}>Send OTP</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.dividerContainer}>
@@ -188,8 +267,10 @@ export default function LoginScreen() {
         </TouchableOpacity>
         
         {Platform.OS === 'ios' && (
-          <TouchableOpacity style={[styles.socialBtn, styles.appleBtn]} onPress={handleAppleLogin}>
-            <Text style={[styles.socialBtnText, styles.appleBtnText]}>Apple</Text>
+          <TouchableOpacity style={[styles.socialBtn, styles.appleBtn]} onPress={handleAppleLogin} disabled={loading}>
+            <Text style={[styles.socialBtnText, styles.appleBtnText]}>
+              {appleAvailable ? 'Apple' : 'Apple (dev build only)'}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -201,6 +282,7 @@ export default function LoginScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -331,5 +413,20 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  secondaryBtn: {
+    marginTop: 10,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  secondaryBtnText: {
+    color: Colors.primary,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

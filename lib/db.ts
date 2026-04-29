@@ -1,14 +1,10 @@
 import { Pool, PoolConfig } from "pg";
 
-// Don't cache pool at all - create fresh connection each time
+// Keep one shared pool for the process lifetime.
 let currentPool: Pool | null = null;
 
 function getPool(): Pool {
-  // Always close and recreate pool to avoid stale connections
-  if (currentPool) {
-    currentPool.end().catch(() => {});
-    currentPool = null;
-  }
+  if (currentPool) return currentPool;
 
   const dbUrl = process.env.DATABASE_URL;
   
@@ -44,7 +40,7 @@ export async function query<T = Record<string, unknown>>(
   params?: unknown[]
 ): Promise<T[]> {
   try {
-    // Get fresh pool for each query
+    // Reuse shared pool to avoid connection churn and race conditions.
     const pool = getPool();
     const result = await pool.query(sql, params);
     return result.rows as T[];

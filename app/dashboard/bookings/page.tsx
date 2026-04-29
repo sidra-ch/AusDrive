@@ -17,6 +17,12 @@ type Booking = {
   total_amount: number;
 };
 
+function safeDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? "—" : format(d, "d MMM yyyy");
+}
+
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,8 +71,8 @@ export default function BookingsPage() {
                 <Td><span className="font-mono text-cyan-400">BK-{b.id}</span></Td>
                 <Td>{b.customer_name}</Td>
                 <Td>{b.car_make} {b.car_model}</Td>
-                <Td>{format(new Date(b.start_date), "d MMM yyyy")}</Td>
-                <Td>{format(new Date(b.end_date), "d MMM yyyy")}</Td>
+                <Td>{safeDate(b.start_date)}</Td>
+                <Td>{safeDate(b.end_date)}</Td>
                 <Td>${parseFloat(String(b.total_amount)).toFixed(2)}</Td>
                 <Td>
                   <Badge label={b.status} variant={b.status === "confirmed" ? "success" : b.status === "pending" ? "warning" : "danger"} />

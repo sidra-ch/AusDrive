@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
 import { PageTracker } from "@/components/page-tracker";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/components/auth-context";
 import { PremiumLoader } from "@/components/premium-loader";
 import { PremiumFullscreenLoader } from "@/components/premium-fullscreen-loader";
 import "./globals.css";
@@ -35,10 +36,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeProvider>
-          <PremiumFullscreenLoader />
-          <PremiumLoader />
-          <PageTracker />
-          {children}
+          <AuthProvider>
+            <PremiumFullscreenLoader />
+            <PremiumLoader />
+            <PageTracker />
+            {children}
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

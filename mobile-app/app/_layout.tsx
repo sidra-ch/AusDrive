@@ -30,12 +30,15 @@ export default function RootLayout() {
 
   // Safety timeout - if loadAuth hangs (e.g. SecureStore hang), force navigation
   useEffect(() => {
+    if (!isLoading) return;
+
     const timeout = setTimeout(() => {
       console.warn('Loading timeout - forcing navigation');
       useAuthStore.setState({ isLoading: false });
     }, 10000);
+
     return () => clearTimeout(timeout);
-  }, []);
+  }, [isLoading]);
 
   if (isLoading) {
     return <LoadingScreenAdvanced />;

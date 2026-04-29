@@ -63,11 +63,22 @@ export default function LiveMapPage() {
       return;
     }
 
-    // Check if script already exists
-    const existingScript = document.querySelector(`script[src*="maps.googleapis.com"]`);
-    if (existingScript) {
+    // Already fully loaded
+    if ((window as any).google?.maps?.Map) {
       setMapLoaded(true);
       return;
+    }
+
+    const existingScript = document.querySelector(`script[src*="maps.googleapis.com"]`);
+    if (existingScript) {
+      // Script tag exists but google may not be ready yet — poll until available
+      const poll = setInterval(() => {
+        if ((window as any).google?.maps?.Map) {
+          clearInterval(poll);
+          setMapLoaded(true);
+        }
+      }, 100);
+      return () => clearInterval(poll);
     }
 
     const script = document.createElement("script");
@@ -75,12 +86,14 @@ export default function LiveMapPage() {
     script.async = true;
     script.defer = true;
     script.onload = () => setMapLoaded(true);
+    script.onerror = () => console.error("Failed to load Google Maps script");
     document.head.appendChild(script);
   }, []);
 
   // Initialize map
   useEffect(() => {
     if (!mapLoaded || tracking.length === 0) return;
+    if (!(window as any).google?.maps?.Map) return;
 
     const validTracking = tracking.filter((car) => car.lat !== null && car.lng !== null);
     if (validTracking.length === 0) return;

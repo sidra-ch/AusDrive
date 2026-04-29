@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { query } from "@/lib/db";
-import { signToken } from "@/lib/auth";
+import { getRefreshExpiryDate, hashToken, issueTokenPair, setAuthCookies } from "@/lib/auth";
 import { handleCORS, handleOPTIONS } from "@/lib/cors";
 import { canUseAdminSignup, isStrongPassword } from "@/lib/admin-auth";
+import { ensureAuthSchema } from "@/lib/auth-schema";
 
 // Handle preflight requests
 export async function OPTIONS(req: NextRequest) {
@@ -12,6 +13,8 @@ export async function OPTIONS(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    await ensureAuthSchema();
+
     const { name, email, password, adminSecretKey } = await req.json();
 
     if (!name || !email || !password)
@@ -51,25 +54,25 @@ export async function POST(req: NextRequest) {
 
     const user = result[0];
 
-    const token = await signToken({
+    const authPayload = {
       sub: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
       branch: user.branch,
-    });
+    };
+
+    const { accessToken, refreshToken } = await issueTokenPair(authPayload);
+    await query(
+      "UPDATE users SET refresh_token_hash = $1, refresh_token_expires_at = $2 WHERE id = $3",
+      [hashToken(refreshToken), getRefreshExpiryDate(), user.id],
+    );
 
     const res = NextResponse.json({
       user: { id: user.id, name: user.name, email: user.email, role: user.role, branch: user.branch },
     }, { status: 201 });
 
-    res.cookies.set("auth_token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
+    setAuthCookies(res, accessToken, refreshToken);
 
     return handleCORS(res, req.headers.get("origin") || undefined);
   } catch (err) {

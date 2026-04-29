@@ -21,5 +21,9 @@ module.exports = () => {
           : {}),
       },
     },
+    plugins: [
+      ...(expo.plugins || []),
+      "expo-web-browser",
+    ],
   };
 };

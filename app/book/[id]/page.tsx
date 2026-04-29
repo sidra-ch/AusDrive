@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Calendar, Users, MapPin, CreditCard } from "lucide-react";
+import Link from "next/link";
+import { useAuth } from "@/components/auth-context";
 
 interface Car {
   id: number;
@@ -124,6 +126,7 @@ const CARS_DATA: Record<number, Car> = {
 export default function BookingPage() {
   const params = useParams();
   const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const [car, setCar] = useState<Car | null>(null);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
@@ -131,13 +134,12 @@ export default function BookingPage() {
     returnDate: "",
     pickupLocation: "",
     returnLocation: "",
-    fullName: "",
-    email: "",
-    phone: "",
   });
   const [days, setDays] = useState(1);
   const [totalPrice, setTotalPrice] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [bookingError, setBookingError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const carId = parseInt(params.id as string);
@@ -150,7 +152,7 @@ export default function BookingPage() {
     setLoading(false);
   }, [params.id]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
 
@@ -173,18 +175,65 @@ export default function BookingPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => {
-      router.push("/");
-    }, 3000);
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=/book/${params.id as string}`);
+      return;
+    }
+    setBookingError("");
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          car_id: parseInt(params.id as string),
+          pickup_date: formData.pickupDate,
+          return_date: formData.returnDate,
+          pickup_location: formData.pickupLocation,
+          notes: formData.returnLocation ? `Return location: ${formData.returnLocation}` : undefined,
+          payment_method: "card",
+        }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Booking failed");
+      setSubmitted(true);
+    } catch (err) {
+      setBookingError(err instanceof Error ? err.message : "Booking failed. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0B0B0B] flex items-center justify-center">
         <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#0B0B0B] flex items-center justify-center">
+        <div className="text-white">Checking session…</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#0B0B0B] flex flex-col items-center justify-center gap-6 px-4 text-center">
+        <h2 className="text-2xl font-bold text-white">Sign in to book a car</h2>
+        <p className="text-gray-400">You need to be logged in to complete a booking.</p>
+        <Link
+          href={`/login?redirect=/book/${params.id as string}`}
+          className="px-8 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+        >
+          Sign In
+        </Link>
       </div>
     );
   }
@@ -219,7 +268,6 @@ export default function BookingPage() {
           <p className="text-gray-400 mb-6">
             Total: <span className="text-white font-bold">${totalPrice}</span>
           </p>
-          <p className="text-gray-500 text-sm mb-6">Redirecting to home in 3 seconds…</p>
           <button
             onClick={() => router.push("/")}
             className="px-8 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
@@ -367,51 +415,9 @@ export default function BookingPage() {
                   <Users size={24} className="text-cyan-400" />
                   Personal Information
                 </h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-gray-400 text-sm mb-2">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      name="fullName"
-                      value={formData.fullName}
-                      onChange={handleInputChange}
-                      placeholder="John Doe"
-                      required
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-gray-400 text-sm mb-2">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        placeholder="john@example.com"
-                        required
-                        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-gray-400 text-sm mb-2">
-                        Phone
-                      </label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleInputChange}
-                        placeholder="+61 2 1234 5678"
-                        required
-                        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
-                      />
-                    </div>
-                  </div>
+                <div className="rounded-lg bg-white/5 border border-white/10 px-4 py-3">
+                  <p className="text-white font-medium">{user?.name}</p>
+                  <p className="text-gray-400 text-sm">{user?.email}</p>
                 </div>
               </div>
 
@@ -438,11 +444,17 @@ export default function BookingPage() {
               </div>
 
               {/* Submit Button */}
+              {bookingError && (
+                <div className="rounded-lg bg-rose-500/15 border border-rose-500/30 px-4 py-3 text-rose-300 text-sm">
+                  {bookingError}
+                </div>
+              )}
               <button
                 type="submit"
-                className="w-full px-6 py-4 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold text-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+                disabled={submitting}
+                className="w-full px-6 py-4 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold text-lg hover:shadow-lg hover:shadow-cyan-500/50 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Confirm Booking
+                {submitting ? "Confirming…" : "Confirm Booking"}
               </button>
             </form>
           </div>

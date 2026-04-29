@@ -18,10 +18,15 @@ export const aiService = {
       });
       return response.data.recommendations as CarRecommendation[];
     } catch (error: any) {
-      // Log silently to avoid console noise in demo mode
-      if (error?.code !== 'ECONNABORTED') {
+      const status = error?.response?.status;
+      const backendMessage = error?.response?.data?.error;
+
+      if (status) {
+        console.warn(`[AI Service] Recommendations failed (${status}): ${backendMessage || 'Unknown server error'}`);
+      } else if (error?.code !== 'ECONNABORTED') {
         console.warn('[AI Service] Recommendations unavailable (backend offline)');
       }
+
       return [];
     }
   },

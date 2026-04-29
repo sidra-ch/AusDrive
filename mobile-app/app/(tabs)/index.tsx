@@ -54,10 +54,15 @@ export default function DashboardScreen() {
   async function loadStats() {
     try {
       const response = await dashboardAPI.getStats();
-      setStats(response.data.stats);
-    } catch (error) {
-      // Graceful fallback with demo data when backend unavailable
-      console.warn('Backend offline - using demo data');
+      setStats(response.data.stats ?? response.data.kpis);
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const backendMessage = error?.response?.data?.error;
+      if (status) {
+        console.warn(`[Dashboard] Stats request failed (${status}): ${backendMessage || 'Unknown server error'}`);
+      } else {
+        console.warn('Backend offline - using demo data');
+      }
       setStats({
         total_bookings: 12,
         active_rentals: 3,
@@ -95,8 +100,14 @@ export default function DashboardScreen() {
       } else {
         setRecommendations(data);
       }
-    } catch (error) {
-      console.warn('Backend offline - using demo data');
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const backendMessage = error?.response?.data?.error;
+      if (status) {
+        console.warn(`[Dashboard] Recommendations failed (${status}): ${backendMessage || 'Unknown server error'}`);
+      } else {
+        console.warn('Backend offline - using demo data');
+      }
       // Demo data on error
       setRecommendations([
         {

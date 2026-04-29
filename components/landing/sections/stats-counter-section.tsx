@@ -12,7 +12,7 @@ export function StatsCounterSection() {
         whileInView={{ opacity: 1, scale: 1, y: 0 }}
         viewport={{ once: true, margin: "-60px" }}
         transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        className="relative overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-[#0c0d24] via-[#0f1035] to-[#0c0d24] p-8 shadow-[0_0_80px_rgba(99,102,241,0.12)] md:rounded-3xl md:p-12"
+        className="relative overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-[#0c0d24] via-[#0f1035] to-[#0c0d24] p-8 shadow-[0_0_80px_rgba(99,102,241,0.12)] transform-gpu will-change-transform md:rounded-3xl md:p-12"
       >
         <div className="blob h-64 w-64 bg-cyan-500/8 left-[-60px] top-[-40px]" />
         <div className="blob h-64 w-64 bg-violet-500/8 right-[-60px] bottom-[-40px]" />
@@ -34,7 +34,8 @@ export function StatsCounterSection() {
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.5, delay: i * 0.08, ease: [0.22, 1, 0.36, 1] }}
+                className="transform-gpu will-change-transform"
               >
                 <CountUp target={counter.value} suffix={counter.suffix} label={counter.label} />
               </motion.div>

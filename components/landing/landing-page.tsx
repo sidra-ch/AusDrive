@@ -52,12 +52,23 @@ export default function LandingPage() {
   useEffect(() => {
     if (prefersReducedMotion) return;
     let lenis: { raf: (t: number) => void; destroy: () => void } | null = null;
+    let rafId: number | null = null;
     import("lenis").then(({ default: Lenis }) => {
-      lenis = new Lenis({ duration: 1.2, easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
-      function raf(time: number) { lenis!.raf(time); requestAnimationFrame(raf); }
-      requestAnimationFrame(raf);
+      lenis = new Lenis({
+        duration: 1.1,
+        easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      });
+      function raf(time: number) {
+        lenis?.raf(time);
+        rafId = requestAnimationFrame(raf);
+      }
+      rafId = requestAnimationFrame(raf);
     });
-    return () => { lenis?.destroy(); };
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      lenis?.destroy();
+    };
   }, [prefersReducedMotion]);
 
   useGsapReveal(statsRef, "bottom");

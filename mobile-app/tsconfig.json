@@ -29,8 +29,15 @@
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx"
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "constants/**/*.ts",
+    "hooks/**/*.ts",
+    "services/**/*.ts",
+    "store/**/*.ts",
+    "backend/**/*.ts"
   ],
   "exclude": [
     "node_modules",

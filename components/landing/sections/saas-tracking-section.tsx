@@ -20,10 +20,11 @@ export function SaasTrackingSection({ saasRef }: SaasTrackingSectionProps) {
 
           {/* Left — slides from left */}
           <motion.div
-            initial={{ opacity: 0, x: -60 }}
+            initial={{ opacity: 0, x: -36 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            className="transform-gpu will-change-transform"
           >
             <span className="text-xs font-bold tracking-[0.35em] text-violet-400 uppercase">FleetRent Pro</span>
             <h2 className="mt-3 text-2xl font-bold text-white md:text-4xl">Live GPS Fleet Tracking — Built In</h2>
@@ -54,11 +55,11 @@ export function SaasTrackingSection({ saasRef }: SaasTrackingSectionProps) {
 
           {/* Right — slides from right */}
           <motion.div
-            initial={{ opacity: 0, x: 60 }}
+            initial={{ opacity: 0, x: 36 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="relative"
+            className="relative transform-gpu will-change-transform"
           >
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-violet-500/10 blur-xl md:rounded-3xl" />
             <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] md:rounded-3xl">
