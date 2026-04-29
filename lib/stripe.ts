@@ -2,8 +2,29 @@ import Stripe from 'stripe';
 import { prisma } from './prisma';
 import { pricingService } from './pricing';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2026-04-22.dahlia',
+let stripeClient: Stripe | null = null;
+
+export function getStripeClient(): Stripe {
+  if (stripeClient) {
+    return stripeClient;
+  }
+
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error('STRIPE_SECRET_KEY is not configured');
+  }
+
+  stripeClient = new Stripe(secretKey, {
+    apiVersion: '2026-04-22.dahlia',
+  });
+
+  return stripeClient;
+}
+
+const stripe = new Proxy({} as Stripe, {
+  get(_target, prop, receiver) {
+    return Reflect.get(getStripeClient() as unknown as object, prop, receiver);
+  },
 });
 
 interface PaymentIntentData {

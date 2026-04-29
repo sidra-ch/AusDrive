@@ -2,10 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { query } from "@/lib/db";
 
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+function getStripe() {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error("STRIPE_SECRET_KEY is not configured");
+  }
+
+  return require("stripe")(secretKey);
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const stripe = getStripe();
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -105,6 +113,7 @@ export async function POST(req: NextRequest) {
 // Webhook handler
 export async function PUT(req: NextRequest) {
   try {
+    const stripe = getStripe();
     const sig = req.headers.get("stripe-signature") || "";
     const body = await req.text();
     const event = stripe.webhooks.constructEvent(

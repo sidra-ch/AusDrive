@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { PageLoader } from "@/components/dashboard/loading";
 import { Card, GhostBtn, PageWrapper, PrimaryBtn, SectionHeader } from "@/components/dashboard/ui";
 
 type Car = { id: number; make: string; model: string; plate: string; daily_rate: string; category: string; status: string };
 type Customer = { id: number; name: string; email: string };
 
-export default function NewRentalPage() {
+function NewRentalPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [cars, setCars] = useState<Car[]>([]);
@@ -205,5 +206,13 @@ export default function NewRentalPage() {
         </div>
       </form>
     </PageWrapper>
+  );
+}
+
+export default function NewRentalPage() {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <NewRentalPageContent />
+    </Suspense>
   );
 }

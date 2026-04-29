@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2 } from "lucide-react";
@@ -24,7 +24,7 @@ type FormState = {
 
 const STEPS = ["Trip", "Customer", "Confirm"];
 
-export default function BookPage() {
+function BookPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -334,6 +334,30 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
       <span className="text-white/50">{label}</span>
       <span className="font-medium text-white">{value || "-"}</span>
+    </div>
+  );
+}
+export default function BookPage() {
+  return (
+    <Suspense fallback={<BookPageFallback />}>
+      <BookPageContent />
+    </Suspense>
+  );
+}
+
+function BookPageFallback() {
+  return (
+    <div className="min-h-screen bg-[#07081f] text-white">
+      <Navbar />
+      <section className="pt-28 pb-16 md:pt-36 md:pb-24">
+        <div className="mx-auto max-w-5xl px-4 md:px-6">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur-xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-cyan-300/80">Loading</p>
+            <h1 className="mt-3 text-3xl font-bold">Preparing your booking</h1>
+            <p className="mt-2 text-white/60">Please wait while we load your reservation details.</p>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
