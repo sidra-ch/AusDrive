@@ -1,11 +1,8 @@
 "use client";
 
-import { Bell, Menu, Search } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-
-// For now, set unread count to 0 since we removed mock data
-// In a real app, this would be fetched from an API
-const unreadCount = 0;
+import { NotificationBell } from "@/components/NotificationBell";
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   return (
@@ -29,14 +26,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           🇦🇺 Sydney Branch
         </span>
         <ThemeToggle />
-        <button className="relative rounded-xl border border-input bg-muted p-2 text-muted-foreground hover:text-foreground transition-colors">
-          <Bell className="h-4 w-4" />
-          {unreadCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-violet-500 text-[9px] font-bold text-white">
-              {unreadCount}
-            </span>
-          )}
-        </button>
+        <NotificationBell />
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-violet-500 text-xs font-bold text-white">
           A
         </div>
