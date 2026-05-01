@@ -6,6 +6,15 @@ import { handleCORS, handleOPTIONS } from "@/lib/cors";
 import { isAdminRole } from "@/lib/admin-auth";
 import { ensureAuthSchema } from "@/lib/auth-schema";
 
+async function safePasswordCompare(plain: string, hash: string): Promise<boolean> {
+  try {
+    return await bcrypt.compare(plain, hash);
+  } catch (error) {
+    console.warn("[admin/login] Invalid password hash format", error);
+    return false;
+  }
+}
+
 export async function OPTIONS(req: NextRequest) {
   return handleOPTIONS(req.headers.get("origin") || undefined);
 }
@@ -46,7 +55,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const valid = await bcrypt.compare(String(password), user.password);
+    const valid = await safePasswordCompare(String(password), user.password);
     if (!valid) {
       return handleCORS(
         NextResponse.json({ error: "Invalid admin credentials" }, { status: 401 }),

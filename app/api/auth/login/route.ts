@@ -7,6 +7,15 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { z } from "zod";
 import { ensureAuthSchema } from "@/lib/auth-schema";
 
+async function safePasswordCompare(plain: string, hash: string): Promise<boolean> {
+  try {
+    return await bcrypt.compare(plain, hash);
+  } catch (error) {
+    console.warn("[auth/login] Invalid password hash format", error);
+    return false;
+  }
+}
+
 const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8).max(128),
@@ -51,7 +60,7 @@ export async function POST(req: NextRequest) {
       return handleCORS(NextResponse.json({ error: "Invalid credentials" }, { status: 401 }), req.headers.get("origin") || undefined);
     }
 
-    const valid = await bcrypt.compare(password, user.password);
+    const valid = await safePasswordCompare(password, user.password);
     if (!valid) return handleCORS(NextResponse.json({ error: "Invalid credentials" }, { status: 401 }), req.headers.get("origin") || undefined);
 
     // Admin/staff roles bypass email verification (they are provisioned by the system)
