@@ -1,4 +1,5 @@
-import { Pool, PoolConfig } from "pg";
+import { Pool } from "pg";
+import type { PoolConfig } from "pg";
 
 // Keep one shared pool for the process lifetime.
 let currentPool: Pool | null = null;

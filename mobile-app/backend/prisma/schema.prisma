@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ============================================
@@ -31,6 +30,7 @@ model User {
   reviews         Review[]
   walletTransactions WalletTransaction[]
   savedCars       SavedCar[]
+  sessions        Session[]
 
   @@index([email])
   @@index([role])
@@ -58,7 +58,7 @@ model Car {
   rating          Float     @default(0) // Average rating
   deals           Int       @default(0) // Number of active deals
   isAvailable     Boolean   @default(true)
-  features        String[]  // ["GPS", "WiFi", "Backup Camera"]
+  features        String?   // JSON array stored as string: ["GPS", "WiFi", "Backup Camera"]
   latitude        Float?    // Current GPS latitude
   longitude       Float?    // Current GPS longitude
   lastGpsUpdate   DateTime? // Last GPS update timestamp
@@ -244,6 +244,32 @@ model SavedCar {
 
   @@unique([userId, carId]) // Can only save each car once per user
   @@index([userId])
+}
+
+// ============================================
+// Session Management
+// ============================================
+
+model Session {
+  id              String    @id @default(uuid())
+  userId          String
+  deviceName      String?   // e.g., "iPhone 14", "Chrome on Windows"
+  deviceType      String?   // e.g., "mobile", "web", "tablet"
+  ipAddress       String?
+  userAgent       String?
+  accessToken     String?
+  refreshToken    String?
+  expiresAt       DateTime
+  lastActivityAt  DateTime  @default(now())
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([expiresAt])
 }
 
 // ============================================

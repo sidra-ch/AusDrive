@@ -9,6 +9,8 @@ import dashboardRoutes from "./routes/dashboard.routes";
 import aiRoutes from "./routes/ai.routes";
 import carsRoutes from "./routes/cars.routes";
 import gpsRoutes from "./routes/gps.routes";
+import sessionsRoutes from "./routes/sessions.routes";
+import usersRoutes from "./routes/users.routes";
 
 dotenv.config();
 
@@ -33,6 +35,8 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/cars", carsRoutes);
 app.use("/api/gps", gpsRoutes);
+app.use("/api/sessions", sessionsRoutes);
+app.use("/api/users", usersRoutes);
 
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });

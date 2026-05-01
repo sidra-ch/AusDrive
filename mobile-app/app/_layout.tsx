@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { LoadingScreenAdvanced } from '@/components/loading-screen-advanced';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -8,12 +8,21 @@ export default function RootLayout() {
   const { loadAuth, isLoading, isAuthenticated } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+  const [minimumLoaderVisible, setMinimumLoaderVisible] = useState(true);
 
   useEffect(() => {
     loadAuth();
     notificationService.initialize().catch(error => {
       console.warn('Failed to initialize notification service:', error);
     });
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinimumLoaderVisible(false);
+    }, 1800);
+
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -40,7 +49,7 @@ export default function RootLayout() {
     return () => clearTimeout(timeout);
   }, [isLoading]);
 
-  if (isLoading) {
+  if (isLoading || minimumLoaderVisible) {
     return <LoadingScreenAdvanced />;
   }
 

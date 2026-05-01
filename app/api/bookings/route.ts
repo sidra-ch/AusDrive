@@ -64,19 +64,79 @@ export async function POST(req: NextRequest) {
   if (isNaN(pickup.getTime()) || isNaN(returnD.getTime()) || returnD <= pickup)
     return handleCORS(NextResponse.json({ error: "Invalid date range" }, { status: 400 }), origin);
 
-  // Conflict check — block overlapping bookings for the same car
+  // IMPROVED: Comprehensive double-booking prevention
+  // 1. Check for overlapping bookings with 30-minute buffer
+  const bufferMinutes = 30;
+  const pickupWithBuffer = new Date(pickup.getTime() - bufferMinutes * 60000);
+  const returnWithBuffer = new Date(returnD.getTime() + bufferMinutes * 60000);
+
   const conflict = await query(
-    `SELECT id FROM bookings WHERE car_id = $1 AND status NOT IN ('CANCELLED', 'cancelled')
-     AND (pickup_date, return_date) OVERLAPS ($2::timestamptz, $3::timestamptz)`,
-    [car_id, pickup_date, return_date]
+    `SELECT id, pickup_date, return_date FROM bookings 
+     WHERE car_id = $1 
+     AND status NOT IN ('CANCELLED', 'cancelled')
+     AND (
+       (pickup_date < $3 AND return_date > $2)
+     )`,
+    [car_id, pickupWithBuffer, returnWithBuffer]
   );
-  if (conflict.length > 0)
-    return handleCORS(NextResponse.json({ error: "Car already booked for this period" }, { status: 409 }), origin);
+
+  if (conflict.length > 0) {
+    const conflictBooking = conflict[0];
+    return handleCORS(
+      NextResponse.json({
+        error: "Car not available for this period",
+        conflictingBooking: {
+          pickupDate: conflictBooking.pickup_date,
+          returnDate: conflictBooking.return_date,
+        },
+      }, { status: 409 }),
+      origin
+    );
+  }
+
+  // 2. Check for maintenance windows
+  const maintenance = await query(
+    `SELECT id, service_date FROM maintenance 
+     WHERE car_id = $1 
+     AND status IN ('in_progress', 'scheduled')
+     AND service_date < $3 
+     AND (service_date + INTERVAL '1 day') > $2`,
+    [car_id, pickup, returnD]
+  );
+
+  if (maintenance.length > 0) {
+    return handleCORS(
+      NextResponse.json({
+        error: "Car is under maintenance during this period",
+      }, { status: 409 }),
+      origin
+    );
+  }
+
+  // 3. Verify car exists and is available
+  const car = await query(
+    `SELECT id, status FROM cars WHERE id = $1`,
+    [car_id]
+  );
+
+  if (car.length === 0) {
+    return handleCORS(
+      NextResponse.json({ error: "Car not found" }, { status: 404 }),
+      origin
+    );
+  }
+
+  if (car[0].status === "maintenance") {
+    return handleCORS(
+      NextResponse.json({ error: "Car is currently under maintenance" }, { status: 409 }),
+      origin
+    );
+  }
 
   // Determine initial status:
-  // - cash payments require admin confirmation → PENDING
-  // - card payments are also PENDING until webhook confirms
-  const initialStatus = "PENDING";
+  // - For non-admin users: PENDING_PAYMENT (must pay before confirmation)
+  // - For admin users: PENDING (admin can confirm without payment)
+  const initialStatus = isAdmin ? "PENDING" : "PENDING_PAYMENT";
 
   const effectiveCustomerId = customer_id ?? null;
   const result = await query(
@@ -84,6 +144,18 @@ export async function POST(req: NextRequest) {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
     [effectiveCustomerId, car_id, pickup_date, return_date, pickup_location ?? null, notes ?? null, initialStatus, payment_method ?? "card", session.sub]
   );
+
+  // For non-admin users, return payment intent requirement
+  if (!isAdmin) {
+    return handleCORS(
+      NextResponse.json({
+        booking: result[0],
+        message: "Booking created. Payment required to confirm.",
+        paymentRequired: true,
+      }, { status: 201 }),
+      origin
+    );
+  }
 
   await query(
     "INSERT INTO audit_logs (user_id, user_name, action, module, record_id) VALUES ($1,$2,$3,$4,$5)",

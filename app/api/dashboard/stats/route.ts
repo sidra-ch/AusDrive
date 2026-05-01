@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryOne, query } from "@/lib/db";
 import { getSession, verifyToken } from "@/lib/auth";
 import { handleCORS, handleOPTIONS } from "@/lib/cors";
+import { ensureAuthSchema } from "@/lib/auth-schema";
 
 async function getSessionFromRequest(req: NextRequest) {
   let session = await getSession();
@@ -21,6 +22,8 @@ export async function OPTIONS(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const session = await getSessionFromRequest(req);
   if (!session) return handleCORS(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), req.headers.get("origin") || undefined);
+
+  await ensureAuthSchema();
 
   const [
     totalCars, availableCars, rentedCars, maintenanceCars,

@@ -18,27 +18,56 @@ export interface AuthResponse {
   refreshToken?: string;
 }
 
+const parseHost = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const withoutProtocol = trimmed.replace(/^[a-z]+:\/\//i, "");
+  const hostPort = withoutProtocol.split("/")[0] || "";
+  const host = hostPort.split(":")[0] || "";
+  return host || null;
+};
+
 const getDefaultApiUrl = () => {
   const configured = process.env.EXPO_PUBLIC_API_URL?.trim();
   if (configured) return configured;
 
-  // Expo host URI usually looks like 192.168.1.10:8081 in development.
-  const hostUri =
-    (Constants.expoConfig as any)?.hostUri ||
-    (Constants as any)?.manifest2?.extra?.expoGo?.debuggerHost ||
-    (Constants as any)?.manifest?.debuggerHost;
+  const extraConfigured =
+    (Constants.expoConfig as any)?.extra?.apiUrl ||
+    (Constants as any)?.manifest2?.extra?.expoClient?.extra?.apiUrl ||
+    (Constants as any)?.manifest?.extra?.apiUrl;
+  if (typeof extraConfigured === "string" && extraConfigured.trim()) {
+    return extraConfigured.trim();
+  }
 
-  if (typeof hostUri === 'string' && hostUri.length > 0) {
-    const host = hostUri.split(':')[0];
-    if (host) return `http://${host}:3000`;
+  const hostSources = [
+    (Constants as any)?.expoGoConfig?.debuggerHost,
+    (Constants.expoConfig as any)?.hostUri,
+    (Constants as any)?.manifest2?.extra?.expoGo?.debuggerHost,
+    (Constants as any)?.manifest2?.extra?.expoClient?.hostUri,
+    (Constants as any)?.manifest?.debuggerHost,
+    (Constants as any)?.manifest?.hostUri,
+  ];
+
+  for (const source of hostSources) {
+    const host = parseHost(source);
+    if (host) {
+      return `http://${host}:3000`;
+    }
   }
 
   // Android emulator maps host machine localhost to 10.0.2.2.
-  if (Platform.OS === 'android') return 'http://10.0.2.2:3000';
-  return 'http://localhost:3000';
+  if (Platform.OS === "android") return "http://10.0.2.2:3000";
+  return "http://127.0.0.1:3000";
 };
 
 export const API_URL = getDefaultApiUrl();
+
+export const API_DEBUG_INFO = {
+  apiUrl: API_URL,
+  platform: Platform.OS,
+};
 
 console.log(`[API] Using base URL: ${API_URL}`);
 

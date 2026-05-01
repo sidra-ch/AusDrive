@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { pool } from "../lib/prisma";
+import { prisma } from "../lib/prisma";
 import { generateToken } from "../utils/jwt";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../utils/email";
 
@@ -91,6 +92,22 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Update last_login timestamp
     await pool.query("UPDATE users SET last_login = NOW() WHERE id = $1", [user.id]);
 
+    // Create session record
+    const userAgent = req.headers["user-agent"] || "";
+    const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+    
+    await prisma.session.create({
+      data: {
+        userId: String(user.id),
+        deviceName: userAgent.substring(0, 255),
+        deviceType: userAgent.includes("Mobile") ? "mobile" : "web",
+        ipAddress: String(ipAddress).split(",")[0],
+        userAgent: userAgent.substring(0, 500),
+        accessToken: token,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+
     res.status(200).json({
       token,
       user: {
@@ -128,7 +145,78 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
 };
 
 export const googleLogin = async (req: Request, res: Response): Promise<void> => {
-  res.status(501).json({ error: "Google login is not supported in this version" });
+  try {
+    const { email, name, googleId, profileImage } = req.body;
+
+    if (!email || !googleId) {
+      res.status(400).json({ error: "Email and Google ID are required" });
+      return;
+    }
+
+    // Check if user exists
+    let user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    // If user doesn't exist, create new user
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name: name || email.split("@")[0],
+          provider: "google",
+          isVerified: true, // Google users are pre-verified
+          role: "USER",
+          profileImage: profileImage || null,
+        },
+      });
+    } else {
+      // Update provider if user exists but hasn't used Google login before
+      if (user.provider !== "google") {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            provider: "google",
+            isVerified: true,
+            profileImage: profileImage || user.profileImage,
+          },
+        });
+      }
+    }
+
+    // Generate JWT token
+    const token = generateToken(user.id);
+
+    // Create session record
+    const userAgent = req.headers["user-agent"] || "";
+    const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+
+    await prisma.session.create({
+      data: {
+        userId: user.id,
+        deviceName: userAgent.substring(0, 255),
+        deviceType: userAgent.includes("Mobile") ? "mobile" : "web",
+        ipAddress: String(ipAddress).split(",")[0],
+        userAgent: userAgent.substring(0, 500),
+        accessToken: token,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        profileImage: user.profileImage,
+      },
+    });
+  } catch (error) {
+    console.error("Google Login Error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 };
 
 export const getMe = async (req: Request, res: Response): Promise<void> => {
@@ -186,5 +274,80 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     res.status(200).json({ message: "Password reset successful." });
   } catch (e) {
     res.status(500).json({ error: "Failed to reset password." });
+  }
+};
+
+export const appleLogin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, name, appleId, profileImage } = req.body;
+
+    if (!email || !appleId) {
+      res.status(400).json({ error: "Email and Apple ID are required" });
+      return;
+    }
+
+    // Check if user exists
+    let user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    // If user doesn't exist, create new user
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name: name || email.split("@")[0],
+          provider: "apple",
+          isVerified: true, // Apple users are pre-verified
+          role: "USER",
+          profileImage: profileImage || null,
+        },
+      });
+    } else {
+      // Update provider if user exists but hasn't used Apple login before
+      if (user.provider !== "apple") {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            provider: "apple",
+            isVerified: true,
+            profileImage: profileImage || user.profileImage,
+          },
+        });
+      }
+    }
+
+    // Generate JWT token
+    const token = generateToken(user.id);
+
+    // Create session record
+    const userAgent = req.headers["user-agent"] || "";
+    const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+
+    await prisma.session.create({
+      data: {
+        userId: user.id,
+        deviceName: userAgent.substring(0, 255),
+        deviceType: userAgent.includes("Mobile") ? "mobile" : "web",
+        ipAddress: String(ipAddress).split(",")[0],
+        userAgent: userAgent.substring(0, 500),
+        accessToken: token,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        profileImage: user.profileImage,
+      },
+    });
+  } catch (error) {
+    console.error("Apple Login Error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };

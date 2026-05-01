@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
+import { ensureAuthSchema } from "@/lib/auth-schema";
 
 export async function POST(req: NextRequest) {
   try {
+    await ensureAuthSchema();
+
     const { path } = await req.json();
     const ip = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "unknown";
     const ua = req.headers.get("user-agent") ?? "";

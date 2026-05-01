@@ -25,7 +25,7 @@ const protectedApiPrefixes = [
   "/api/notifications",
 ];
 
-const staffOnlyPaths = ["/dashboard", "/api/dashboard", "/api/reports", "/api/bookings", "/api/payments"];
+const staffOnlyPaths = ["/dashboard", "/api/dashboard", "/api/reports"];
 const adminOnlyPaths = ["/dashboard/users", "/dashboard/settings", "/api/users", "/api/settings", "/api/audit-logs"];
 
 type TokenClaims = {

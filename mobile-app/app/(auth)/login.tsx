@@ -4,16 +4,14 @@ import { Colors } from '@/constants/Colors';
 import { Eye, EyeOff, Mail, Lock, Phone } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/useAuthStore';
-import { authAPI } from '@/services/api';
+import { API_DEBUG_INFO, authAPI } from '@/services/api';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const isExpoGo = Constants.appOwnership === 'expo';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -22,6 +20,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (Platform.OS === 'ios') {
@@ -29,15 +28,16 @@ export default function LoginScreen() {
     }
   }, []);
 
-  const redirectUri = makeRedirectUri();
+  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+  const googleAndroidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
 
+  // Native Android/iOS clients use package-based auth — no redirect URI or responseType needed.
+  // webClientId is required so the server can verify the idToken.
   const [googleRequest, googleResponse, promptGoogle] = Google.useAuthRequest({
-    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    redirectUri,
-    responseType: "id_token",
+    iosClientId: googleIosClientId,
+    androidClientId: googleAndroidClientId,
+    webClientId: googleWebClientId,
     scopes: ["openid", "profile", "email"],
   });
 
@@ -48,11 +48,25 @@ export default function LoginScreen() {
 
   useEffect(() => {
     const processGoogleResponse = async () => {
-      if (googleResponse?.type !== 'success') return;
+      if (!googleResponse) return;
 
-      const idToken = googleResponse.params?.id_token || googleResponse.authentication?.idToken;
+      if (googleResponse.type !== 'success') {
+        if (googleResponse.type === 'dismiss') return;
+        const errorDescription =
+          (googleResponse as any)?.params?.error_description ||
+          (googleResponse as any)?.error?.message ||
+          (googleResponse as any)?.params?.error ||
+          'Google authorization failed. Check Android/iOS OAuth client IDs in env.';
+        Alert.alert('Google Login Failed', errorDescription);
+        return;
+      }
+
+      // Native client code flow: idToken comes from authentication object after PKCE exchange
+      const idToken =
+        googleResponse.authentication?.idToken ||
+        googleResponse.params?.id_token;
       if (!idToken) {
-        Alert.alert('Google Login Failed', 'No ID token returned from Google');
+        Alert.alert('Google Login Failed', 'No ID token returned. Make sure EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is set (required for token verification).');
         return;
       }
 
@@ -63,23 +77,39 @@ export default function LoginScreen() {
   }, [googleResponse]);
 
   const handleGoogleLogin = async () => {
+    if (!googleAndroidClientId && !googleIosClientId) {
+      Alert.alert(
+        'Google Login Config Missing',
+        'Add EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID and/or EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID in mobile-app/.env and restart Expo with -c flag.'
+      );
+      return;
+    }
+
     if (!googleRequest) {
       Alert.alert('Google Login', 'Google auth is not ready yet. Please try again.');
       return;
     }
 
-    if (isExpoGo) {
-      Alert.alert('Google Login', 'Expo Go can open Google auth, but a dev build is recommended for stable deep-linking.');
-    }
-
-    setLoading(true);
+    setGoogleLoading(true);
     try {
-      await promptGoogle();
+      await promptGoogle({ showInRecents: true });
     } catch (err: any) {
       Alert.alert('Google Login Failed', err.message || 'Authentication failed');
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
+  };
+
+  const showNetworkError = (title: string, error: any) => {
+    const details = error?.response?.data?.error || error?.message || 'Request failed';
+    if (!error?.response) {
+      Alert.alert(
+        title,
+        `Network error. Backend URL: ${API_DEBUG_INFO.apiUrl}\n\nMake sure Next.js backend is running on port 3000 and mobile + laptop are on same WiFi.\n\nDetail: ${details}`
+      );
+      return;
+    }
+    Alert.alert(title, details);
   };
 
   const handleOAuthLogin = async (provider: 'google' | 'apple', token: string, fullName?: any) => {
@@ -96,7 +126,7 @@ export default function LoginScreen() {
       await setAuth(normalizeUser(user), authToken, refreshToken || null);
       router.replace('/(tabs)');
     } catch (err: any) {
-      Alert.alert('Login Failed', err.response?.data?.error || err.message);
+      showNetworkError('Login Failed', err);
     } finally {
       setLoading(false);
     }
@@ -146,7 +176,7 @@ export default function LoginScreen() {
       await setAuth(normalizeUser(user), token, refreshToken || null);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Login Failed', error.response?.data?.error || error.message);
+      showNetworkError('Login Failed', error);
     } finally {
       setLoading(false);
     }
@@ -163,7 +193,7 @@ export default function LoginScreen() {
       await authAPI.sendOtp(form.phone, 'sms');
       router.push({ pathname: '/(auth)/otp', params: { phone: form.phone } });
     } catch (error: any) {
-      Alert.alert('OTP Failed', error.response?.data?.error || error.message || 'Could not send OTP');
+      showNetworkError('OTP Failed', error);
     } finally {
       setLoading(false);
     }
@@ -262,8 +292,12 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.socialContainer}>
-        <TouchableOpacity style={styles.socialBtn} onPress={handleGoogleLogin} disabled={loading}>
-          <Text style={styles.socialBtnText}>Google</Text>
+        <TouchableOpacity style={[styles.socialBtn, (loading || googleLoading) && styles.loginBtnDisabled]} onPress={handleGoogleLogin} disabled={loading || googleLoading}>
+          {googleLoading ? (
+            <ActivityIndicator color={Colors.text} />
+          ) : (
+            <Text style={styles.socialBtnText}>Continue with Google</Text>
+          )}
         </TouchableOpacity>
         
         {Platform.OS === 'ios' && (

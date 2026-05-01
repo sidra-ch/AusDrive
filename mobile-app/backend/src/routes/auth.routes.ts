@@ -4,6 +4,7 @@ import {
   login,
   verifyEmail,
   googleLogin,
+  appleLogin,
   getMe,
   forgotPassword,
   resetPassword,
@@ -15,6 +16,7 @@ const router = Router();
 router.post("/register", register);
 router.post("/login", login);
 router.post("/google", googleLogin);
+router.post("/apple", appleLogin);
 // Apple login can be added similarly: router.post("/apple", appleLogin);
 router.post("/verify-email", verifyEmail);
 router.post("/forgot-password", forgotPassword);

@@ -93,7 +93,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
       
       if (token && userStr) {
-        const parsedUser = JSON.parse(userStr) as import('@/services/api').AuthUser & { branch?: string };
+        const parsedUser = JSON.parse(userStr) as User;
         let activeToken = token;
         let activeRefreshToken = refreshToken;
 
