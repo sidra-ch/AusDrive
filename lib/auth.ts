@@ -12,7 +12,7 @@ const refreshSecret = new TextEncoder().encode(
 
 export const AUTH_COOKIE_NAME = "auth_token";
 export const REFRESH_COOKIE_NAME = "refresh_token";
-export const ACCESS_TOKEN_TTL = "15m";
+export const ACCESS_TOKEN_TTL = "7d";
 export const REFRESH_TOKEN_TTL = "30d";
 
 export type JWTPayload = {
@@ -119,7 +119,7 @@ export function setAuthCookies(response: NextResponse, accessToken: string, refr
 
   response.cookies.set(AUTH_COOKIE_NAME, accessToken, {
     ...common,
-    maxAge: 60 * 15,
+    maxAge: 60 * 60 * 24 * 7, // 7 days
   });
 
   response.cookies.set(REFRESH_COOKIE_NAME, refreshToken, {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { PageLoader } from "./loading";
@@ -8,6 +9,27 @@ import { PageLoader } from "./loading";
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const router = useRouter();
+
+  // Silently refresh session — redirect to login only if refresh also fails
+  useEffect(() => {
+    async function refreshSession() {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        if (res.status === 401) {
+          router.replace("/auth/login");
+        }
+      } catch {
+        // network error — keep user on page, try next interval
+      }
+    }
+
+    refreshSession();
+
+    // Re-check every 6 hours to auto-rotate tokens
+    const interval = setInterval(refreshSession, 6 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [router]);
 
   // Close sidebar on mobile by default, open on desktop
   useEffect(() => {
