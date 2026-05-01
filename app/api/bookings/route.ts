@@ -21,146 +21,158 @@ export async function OPTIONS(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const session = await getSessionFromRequest(req);
   if (!session) return handleCORS(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), req.headers.get("origin") || undefined);
+
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status");
-  // Non-admin users only see their own bookings (keyed by user id in customer table)
+  const search = searchParams.get("search");
   const isAdmin = ["ADMIN", "STAFF", "SUPER_ADMIN"].includes(session.role);
-  let sql = `SELECT b.*, c.name as customer_name, c.email as customer_email,
-    ca.make, ca.model, ca.plate
+
+  // Schema detection
+  const tables = await query<{ legacy_bookings: string | null; prisma_booking: string | null }>(
+    `SELECT
+      to_regclass('public.bookings') AS legacy_bookings,
+      to_regclass('public."Booking"') AS prisma_booking`
+  );
+  const schema = tables[0];
+  const useLegacy = Boolean(schema?.legacy_bookings);
+  const usePrisma = Boolean(schema?.prisma_booking) && !useLegacy;
+
+  if (!useLegacy && !usePrisma) {
+    return handleCORS(NextResponse.json({ bookings: [] }), req.headers.get("origin") || undefined);
+  }
+
+  let sql: string;
+  const params: unknown[] = [];
+  let i = 1;
+
+  if (useLegacy) {
+    sql = `SELECT b.id, b.status, b.created_at,
+      b.pickup_date AS start_date, b.return_date AS end_date,
+      b.total_price AS total_amount,
+      c.name AS customer_name,
+      ca.make AS car_make, ca.model AS car_model
     FROM bookings b
     LEFT JOIN customers c ON c.id = b.customer_id
     LEFT JOIN cars ca ON ca.id = b.car_id
     WHERE 1=1`;
-  const params: unknown[] = [];
-  let paramIdx = 1;
-  if (!isAdmin) {
-    sql += ` AND b.created_by = $${paramIdx++}`;
-    params.push(session.sub);
+    if (!isAdmin) { sql += ` AND b.created_by = $${i++}`; params.push(session.sub); }
+    if (status) { sql += ` AND b.status = $${i++}`; params.push(status); }
+    if (search) { sql += ` AND (c.name ILIKE $${i} OR ca.make ILIKE $${i} OR ca.model ILIKE $${i})`; params.push(`%${search}%`); i++; }
+    sql += " ORDER BY b.created_at DESC";
+  } else {
+    sql = `SELECT
+      b.id::text AS id,
+      b.status,
+      b."createdAt" AS created_at,
+      b."pickupDate" AS start_date,
+      b."dropoffDate" AS end_date,
+      b."totalPrice" AS total_amount,
+      b."pickupLocation" AS pickup_location,
+      COALESCE(u.name, b."userId"::text) AS customer_name,
+      u.email AS customer_email,
+      u.phone AS customer_phone,
+      ca.make AS car_make,
+      ca.model AS car_model,
+      ca.rego AS car_plate,
+      ca."dailyRate" AS daily_rate
+    FROM "Booking" b
+    LEFT JOIN "User" u ON u.id = b."userId"
+    LEFT JOIN "Car" ca ON ca.id = b."carId"
+    WHERE 1=1`;
+    if (!isAdmin) { sql += ` AND b."userId" = $${i++}`; params.push(session.sub); }
+    if (status) { sql += ` AND lower(b.status) = lower($${i++})`; params.push(status); }
+    if (search) {
+      sql += ` AND (u.name ILIKE $${i} OR ca.make ILIKE $${i} OR ca.model ILIKE $${i} OR ca.rego ILIKE $${i})`;
+      params.push(`%${search}%`); i++;
+    }
+    sql += ' ORDER BY b."createdAt" DESC';
   }
-  if (status) { sql += ` AND b.status = $${paramIdx++}`; params.push(status); }
-  sql += " ORDER BY b.created_at DESC";
-  const bookings = await query(sql, params);
-  return handleCORS(NextResponse.json({ bookings }), req.headers.get("origin") || undefined);
+
+  try {
+    const bookings = await query(sql, params);
+    return handleCORS(NextResponse.json({ bookings }), req.headers.get("origin") || undefined);
+  } catch (err) {
+    console.error("[Bookings GET]", err);
+    return handleCORS(NextResponse.json({ error: "Failed to load bookings" }, { status: 500 }), req.headers.get("origin") || undefined);
+  }
 }
 
 export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin") || undefined;
   const session = await getSessionFromRequest(req);
   if (!session) return handleCORS(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), origin);
-  const body = await req.json();
-  const { customer_id, car_id, pickup_date, return_date, pickup_location, notes, payment_method } = body;
+
+  const body = await req.json() as Record<string, unknown>;
+  const { car_id, pickup_date, return_date, pickup_location, notes, customer_id } = body as {
+    car_id?: string; pickup_date?: string; return_date?: string;
+    pickup_location?: string; notes?: string; customer_id?: string;
+  };
 
   if (!car_id || !pickup_date || !return_date)
     return handleCORS(NextResponse.json({ error: "car_id, pickup_date and return_date are required" }, { status: 400 }), origin);
 
-  // For admin-created bookings a customer_id is required; for self-service it is optional
-  const isAdmin = ["ADMIN", "STAFF", "SUPER_ADMIN"].includes(session.role);
-  if (isAdmin && !customer_id)
-    return handleCORS(NextResponse.json({ error: "customer_id is required" }, { status: 400 }), origin);
-
-  // Validate date range
   const pickup = new Date(pickup_date);
-  const returnD = new Date(return_date);
-  if (isNaN(pickup.getTime()) || isNaN(returnD.getTime()) || returnD <= pickup)
+  const dropoff = new Date(return_date);
+  if (isNaN(pickup.getTime()) || isNaN(dropoff.getTime()) || dropoff <= pickup)
     return handleCORS(NextResponse.json({ error: "Invalid date range" }, { status: 400 }), origin);
 
-  // IMPROVED: Comprehensive double-booking prevention
-  // 1. Check for overlapping bookings with 30-minute buffer
-  const bufferMinutes = 30;
-  const pickupWithBuffer = new Date(pickup.getTime() - bufferMinutes * 60000);
-  const returnWithBuffer = new Date(returnD.getTime() + bufferMinutes * 60000);
+  const isAdmin = ["ADMIN", "STAFF", "SUPER_ADMIN"].includes(session.role);
 
-  const conflict = await query(
-    `SELECT id, pickup_date, return_date FROM bookings 
-     WHERE car_id = $1 
-     AND status NOT IN ('CANCELLED', 'cancelled')
-     AND (
-       (pickup_date < $3 AND return_date > $2)
-     )`,
-    [car_id, pickupWithBuffer, returnWithBuffer]
-  );
-
-  if (conflict.length > 0) {
-    const conflictBooking = conflict[0];
-    return handleCORS(
-      NextResponse.json({
-        error: "Car not available for this period",
-        conflictingBooking: {
-          pickupDate: conflictBooking.pickup_date,
-          returnDate: conflictBooking.return_date,
-        },
-      }, { status: 409 }),
-      origin
+  try {
+    // Check schema
+    const tables = await query<{ legacy_bookings: string | null; prisma_booking: string | null }>(
+      `SELECT to_regclass('public.bookings') AS legacy_bookings, to_regclass('public."Booking"') AS prisma_booking`
     );
+    const schema = tables[0];
+    const useLegacy = Boolean(schema?.legacy_bookings);
+    const usePrisma = Boolean(schema?.prisma_booking) && !useLegacy;
+
+    if (usePrisma) {
+      // Get car to calculate price
+      const cars = await query<{ id: string; dailyRate: number; isAvailable: boolean }>(
+        `SELECT id, "dailyRate", "isAvailable" FROM "Car" WHERE id = $1`,
+        [car_id]
+      );
+      if (!cars[0]) return handleCORS(NextResponse.json({ error: "Car not found" }, { status: 404 }), origin);
+      if (!cars[0].isAvailable) return handleCORS(NextResponse.json({ error: "Car is not available" }, { status: 409 }), origin);
+
+      const days = Math.max(1, Math.ceil((dropoff.getTime() - pickup.getTime()) / 86400000));
+      const pricePerDay = Number(cars[0].dailyRate);
+      const totalPrice = pricePerDay * days;
+      const userId = customer_id ?? session.sub;
+      const status = isAdmin ? "confirmed" : "pending";
+
+      // Check for overlapping bookings
+      const overlap = await query(
+        `SELECT id FROM "Booking" WHERE "carId" = $1 AND status NOT IN ('cancelled','canceled')
+         AND "pickupDate" < $3 AND "dropoffDate" > $2`,
+        [car_id, pickup, dropoff]
+      );
+      if (overlap.length > 0) return handleCORS(NextResponse.json({ error: "Car is not available for this period" }, { status: 409 }), origin);
+
+      const result = await query(
+        `INSERT INTO "Booking" (id, "userId", "carId", status, "pickupDate", "dropoffDate", "pickupLocation", "dropoffLocation", "totalPrice", "pricePerDay", "specialRequests", "createdAt", "updatedAt")
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $6, $7, $8, $9, NOW(), NOW())
+         RETURNING id::text AS id, status, "pickupDate" AS start_date, "dropoffDate" AS end_date, "totalPrice" AS total_amount`,
+        [userId, car_id, status, pickup, dropoff, pickup_location ?? "Sydney CBD", totalPrice, pricePerDay, notes ?? null]
+      );
+
+      return handleCORS(NextResponse.json({ booking: result[0] }, { status: 201 }), origin);
+    }
+
+    if (useLegacy) {
+      const initialStatus = isAdmin ? "PENDING" : "PENDING_PAYMENT";
+      const result = await query(
+        `INSERT INTO bookings (customer_id, car_id, pickup_date, return_date, pickup_location, notes, status, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [customer_id ?? null, car_id, pickup_date, return_date, pickup_location ?? null, notes ?? null, initialStatus, session.sub]
+      );
+      return handleCORS(NextResponse.json({ booking: result[0] }, { status: 201 }), origin);
+    }
+
+    return handleCORS(NextResponse.json({ error: "No bookings table found" }, { status: 500 }), origin);
+  } catch (err) {
+    console.error("[Bookings POST]", err);
+    return handleCORS(NextResponse.json({ error: err instanceof Error ? err.message : "Failed to create booking" }, { status: 500 }), origin);
   }
-
-  // 2. Check for maintenance windows
-  const maintenance = await query(
-    `SELECT id, service_date FROM maintenance 
-     WHERE car_id = $1 
-     AND status IN ('in_progress', 'scheduled')
-     AND service_date < $3 
-     AND (service_date + INTERVAL '1 day') > $2`,
-    [car_id, pickup, returnD]
-  );
-
-  if (maintenance.length > 0) {
-    return handleCORS(
-      NextResponse.json({
-        error: "Car is under maintenance during this period",
-      }, { status: 409 }),
-      origin
-    );
-  }
-
-  // 3. Verify car exists and is available
-  const car = await query(
-    `SELECT id, status FROM cars WHERE id = $1`,
-    [car_id]
-  );
-
-  if (car.length === 0) {
-    return handleCORS(
-      NextResponse.json({ error: "Car not found" }, { status: 404 }),
-      origin
-    );
-  }
-
-  if (car[0].status === "maintenance") {
-    return handleCORS(
-      NextResponse.json({ error: "Car is currently under maintenance" }, { status: 409 }),
-      origin
-    );
-  }
-
-  // Determine initial status:
-  // - For non-admin users: PENDING_PAYMENT (must pay before confirmation)
-  // - For admin users: PENDING (admin can confirm without payment)
-  const initialStatus = isAdmin ? "PENDING" : "PENDING_PAYMENT";
-
-  const effectiveCustomerId = customer_id ?? null;
-  const result = await query(
-    `INSERT INTO bookings (customer_id, car_id, pickup_date, return_date, pickup_location, notes, status, payment_method, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [effectiveCustomerId, car_id, pickup_date, return_date, pickup_location ?? null, notes ?? null, initialStatus, payment_method ?? "card", session.sub]
-  );
-
-  // For non-admin users, return payment intent requirement
-  if (!isAdmin) {
-    return handleCORS(
-      NextResponse.json({
-        booking: result[0],
-        message: "Booking created. Payment required to confirm.",
-        paymentRequired: true,
-      }, { status: 201 }),
-      origin
-    );
-  }
-
-  await query(
-    "INSERT INTO audit_logs (user_id, user_name, action, module, record_id) VALUES ($1,$2,$3,$4,$5)",
-    [session.sub, session.name, `Created booking for car ${car_id}`, "Bookings", result[0].id]
-  ).catch(() => {}); // audit log failure should not fail the booking
-
-  return handleCORS(NextResponse.json({ booking: result[0] }, { status: 201 }), origin);
 }

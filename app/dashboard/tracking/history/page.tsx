@@ -17,7 +17,7 @@ export default function TrackingHistoryPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch("/api/cars").then((r) => r.json()).then((d) => {
+    fetch("/api/cars").then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then((d) => {
       const gpsCars = (d.cars ?? []).filter((c: ApiCar & { gps_imei?: string }) => c.gps_imei);
       setCars(d.cars ?? []);
       if (gpsCars.length) setSelectedCarId(String(gpsCars[0].id));

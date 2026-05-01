@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "smoke:api": "powershell -ExecutionPolicy Bypass -File scripts/smoke-api.ps1",
+    "smoke:api:full": "powershell -ExecutionPolicy Bypass -File scripts/smoke-api.ps1 -IncludeEmailFlow"
   },
   "keywords": [],
   "author": "",

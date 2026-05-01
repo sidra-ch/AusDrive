@@ -2,9 +2,14 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { pool } from "../lib/prisma";
-import { prisma } from "../lib/prisma";
+import { ensureBackendSchema } from "../lib/schema";
 import { generateToken } from "../utils/jwt";
-import { sendVerificationEmail, sendPasswordResetEmail } from "../utils/email";
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  isEmailTransportConfigured,
+  getEmailErrorMessage,
+} from "../utils/email";
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -20,31 +25,65 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const validatedData = registerSchema.parse(req.body);
 
-    const existingResult = await pool.query(
-      "SELECT id FROM users WHERE email = $1",
-      [validatedData.email]
-    );
-
-    if (existingResult.rows.length > 0) {
-      res.status(400).json({ error: "Email already in use" });
+    if (!isEmailTransportConfigured()) {
+      res.status(503).json({
+        error: "Email service is not configured. Please contact support.",
+      });
       return;
     }
 
-    const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    const result = await pool.query(
-      "INSERT INTO users (name, email, password, role, is_active) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email",
-      [validatedData.name, validatedData.email, hashedPassword, "STAFF", false]
-    );
-    const user = result.rows[0];
+      const existingResult = await client.query(
+        "SELECT id FROM users WHERE email = $1",
+        [validatedData.email]
+      );
 
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
-    await sendVerificationEmail(user.email, verificationCode);
+      if (existingResult.rows.length > 0) {
+        await client.query("ROLLBACK");
+        res.status(400).json({ error: "Email already in use" });
+        return;
+      }
 
-    res.status(201).json({
-      message: "Registration successful. Please check your email to verify your account.",
-      user: { id: String(user.id), name: user.name, email: user.email }
-    });
+      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+
+      const result = await client.query(
+        "INSERT INTO users (name, email, password, role, is_active) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email",
+        [validatedData.name, validatedData.email, hashedPassword, "STAFF", false]
+      );
+      const user = result.rows[0];
+
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      try {
+        await sendVerificationEmail(user.email, verificationCode);
+      } catch (emailError) {
+        throw new Error(`EMAIL_DELIVERY_FAILED:${getEmailErrorMessage(emailError)}`);
+      }
+
+      await client.query("COMMIT");
+
+      res.status(201).json({
+        message: "Registration successful. Please check your email to verify your account.",
+        user: { id: String(user.id), name: user.name, email: user.email }
+      });
+      return;
+    } catch (error) {
+      await client.query("ROLLBACK");
+
+      if (error instanceof Error && error.message.startsWith("EMAIL_DELIVERY_FAILED:")) {
+        console.error("Register Email Delivery Error:", error.message);
+        res.status(503).json({
+          error: "Unable to send verification email right now. Please try again shortly.",
+        });
+        return;
+      }
+
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       res.status(400).json({ error: error.issues[0].message });
@@ -57,6 +96,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureBackendSchema();
+
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -96,17 +137,20 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const userAgent = req.headers["user-agent"] || "";
     const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
     
-    await prisma.session.create({
-      data: {
-        userId: String(user.id),
-        deviceName: userAgent.substring(0, 255),
-        deviceType: userAgent.includes("Mobile") ? "mobile" : "web",
-        ipAddress: String(ipAddress).split(",")[0],
-        userAgent: userAgent.substring(0, 500),
-        accessToken: token,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    });
+    await pool.query(
+      `INSERT INTO user_sessions
+       (user_id, access_token, device_name, device_type, ip_address, user_agent, expires_at, is_active, last_activity_at, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,NOW(),NOW())`,
+      [
+        user.id,
+        token,
+        userAgent.substring(0, 255),
+        userAgent.includes("Mobile") ? "mobile" : "web",
+        String(ipAddress).split(",")[0],
+        userAgent.substring(0, 500),
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      ]
+    );
 
     res.status(200).json({
       token,
@@ -146,6 +190,8 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
 
 export const googleLogin = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureBackendSchema();
+
     const { email, name, googleId, profileImage } = req.body;
 
     if (!email || !googleId) {
@@ -153,64 +199,59 @@ export const googleLogin = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Check if user exists
-    let user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const normalizedEmail = String(email).toLowerCase().trim();
 
-    // If user doesn't exist, create new user
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email,
-          name: name || email.split("@")[0],
-          provider: "google",
-          isVerified: true, // Google users are pre-verified
-          role: "USER",
-          profileImage: profileImage || null,
-        },
-      });
+    let userResult = await pool.query(
+      "SELECT id, name, email, role, provider, profile_image FROM users WHERE lower(email) = $1 LIMIT 1",
+      [normalizedEmail]
+    );
+
+    if (userResult.rows.length === 0) {
+      userResult = await pool.query(
+        `INSERT INTO users (name, email, role, branch, is_active, provider, is_verified, google_id, profile_image)
+         VALUES ($1, $2, 'USER', 'Sydney', TRUE, 'google', TRUE, $3, $4)
+         RETURNING id, name, email, role, provider, profile_image`,
+        [name || normalizedEmail.split("@")[0], normalizedEmail, googleId, profileImage || null]
+      );
     } else {
-      // Update provider if user exists but hasn't used Google login before
-      if (user.provider !== "google") {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            provider: "google",
-            isVerified: true,
-            profileImage: profileImage || user.profileImage,
-          },
-        });
-      }
+      await pool.query(
+        `UPDATE users
+         SET provider = 'google', is_verified = TRUE, google_id = $1, profile_image = COALESCE($2, profile_image), last_login = NOW()
+         WHERE id = $3`,
+        [googleId, profileImage || null, userResult.rows[0].id]
+      );
     }
 
-    // Generate JWT token
-    const token = generateToken(user.id);
+    const user = userResult.rows[0];
+    const token = generateToken(String(user.id));
 
     // Create session record
     const userAgent = req.headers["user-agent"] || "";
     const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
 
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        deviceName: userAgent.substring(0, 255),
-        deviceType: userAgent.includes("Mobile") ? "mobile" : "web",
-        ipAddress: String(ipAddress).split(",")[0],
-        userAgent: userAgent.substring(0, 500),
-        accessToken: token,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    });
+    await pool.query(
+      `INSERT INTO user_sessions
+       (user_id, access_token, device_name, device_type, ip_address, user_agent, expires_at, is_active, last_activity_at, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,NOW(),NOW())`,
+      [
+        Number(user.id),
+        token,
+        userAgent.substring(0, 255),
+        userAgent.includes("Mobile") ? "mobile" : "web",
+        String(ipAddress).split(",")[0],
+        userAgent.substring(0, 500),
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      ]
+    );
 
     res.status(200).json({
       token,
       user: {
-        id: user.id,
+        id: String(user.id),
         name: user.name,
         email: user.email,
         role: user.role,
-        profileImage: user.profileImage,
+        profileImage: user.profile_image,
       },
     });
   } catch (error) {
@@ -254,9 +295,20 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
   const { email } = req.body;
   if (!email) { res.status(400).json({ error: "Email is required" }); return; }
 
+  if (!isEmailTransportConfigured()) {
+    res.status(503).json({ error: "Email service is temporarily unavailable." });
+    return;
+  }
+
   const result = await pool.query("SELECT email FROM users WHERE email = $1", [email]);
   if (result.rows.length > 0) {
-    await sendPasswordResetEmail(email, "RESET-TOKEN-123");
+    try {
+      await sendPasswordResetEmail(email, "RESET-TOKEN-123");
+    } catch (error) {
+      console.error("Forgot Password Email Error:", getEmailErrorMessage(error));
+      res.status(503).json({ error: "Email service is temporarily unavailable." });
+      return;
+    }
   }
   res.status(200).json({ message: "If that email exists, a password reset link has been sent." });
 };
@@ -279,6 +331,8 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 
 export const appleLogin = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureBackendSchema();
+
     const { email, name, appleId, profileImage } = req.body;
 
     if (!email || !appleId) {
@@ -286,64 +340,59 @@ export const appleLogin = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Check if user exists
-    let user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const normalizedEmail = String(email).toLowerCase().trim();
 
-    // If user doesn't exist, create new user
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email,
-          name: name || email.split("@")[0],
-          provider: "apple",
-          isVerified: true, // Apple users are pre-verified
-          role: "USER",
-          profileImage: profileImage || null,
-        },
-      });
+    let userResult = await pool.query(
+      "SELECT id, name, email, role, provider, profile_image FROM users WHERE lower(email) = $1 LIMIT 1",
+      [normalizedEmail]
+    );
+
+    if (userResult.rows.length === 0) {
+      userResult = await pool.query(
+        `INSERT INTO users (name, email, role, branch, is_active, provider, is_verified, apple_sub, profile_image)
+         VALUES ($1, $2, 'USER', 'Sydney', TRUE, 'apple', TRUE, $3, $4)
+         RETURNING id, name, email, role, provider, profile_image`,
+        [name || normalizedEmail.split("@")[0], normalizedEmail, appleId, profileImage || null]
+      );
     } else {
-      // Update provider if user exists but hasn't used Apple login before
-      if (user.provider !== "apple") {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            provider: "apple",
-            isVerified: true,
-            profileImage: profileImage || user.profileImage,
-          },
-        });
-      }
+      await pool.query(
+        `UPDATE users
+         SET provider = 'apple', is_verified = TRUE, apple_sub = COALESCE($1, apple_sub), profile_image = COALESCE($2, profile_image), last_login = NOW()
+         WHERE id = $3`,
+        [appleId, profileImage || null, userResult.rows[0].id]
+      );
     }
 
-    // Generate JWT token
-    const token = generateToken(user.id);
+    const user = userResult.rows[0];
+    const token = generateToken(String(user.id));
 
     // Create session record
     const userAgent = req.headers["user-agent"] || "";
     const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
 
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        deviceName: userAgent.substring(0, 255),
-        deviceType: userAgent.includes("Mobile") ? "mobile" : "web",
-        ipAddress: String(ipAddress).split(",")[0],
-        userAgent: userAgent.substring(0, 500),
-        accessToken: token,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    });
+    await pool.query(
+      `INSERT INTO user_sessions
+       (user_id, access_token, device_name, device_type, ip_address, user_agent, expires_at, is_active, last_activity_at, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,NOW(),NOW())`,
+      [
+        Number(user.id),
+        token,
+        userAgent.substring(0, 255),
+        userAgent.includes("Mobile") ? "mobile" : "web",
+        String(ipAddress).split(",")[0],
+        userAgent.substring(0, 500),
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      ]
+    );
 
     res.status(200).json({
       token,
       user: {
-        id: user.id,
+        id: String(user.id),
         name: user.name,
         email: user.email,
         role: user.role,
-        profileImage: user.profileImage,
+        profileImage: user.profile_image,
       },
     });
   } catch (error) {

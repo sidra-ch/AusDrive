@@ -23,7 +23,7 @@ export default function PaymentsPage() {
     const params = new URLSearchParams();
     if (filter) params.set("status", filter);
     fetch(`/api/payments?${params}`)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => { setPayments(d.payments ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   }

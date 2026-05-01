@@ -6,6 +6,7 @@ import { bookingsAPI } from '@/services/api';
 import { Colors } from '@/constants/Colors';
 import { CustomHeader } from '@/components/custom-header';
 import { SkeletonLoader } from '@/components/skeleton-loader';
+import { useRouter } from 'expo-router';
 
 type Booking = {
   id: number;
@@ -23,6 +24,7 @@ export default function BookingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     loadBookings();
@@ -62,7 +64,7 @@ export default function BookingsScreen() {
 
   const BookingCard = React.memo(function BookingCard({ item }: { item: Booking }) {
     return (
-      <TouchableOpacity style={styles.bookingCard}>
+      <TouchableOpacity style={styles.bookingCard} onPress={() => router.push(`/booking/${item.id}` as any)}>
         <View style={styles.bookingHeader}>
           <View style={styles.bookingId}>
             <Text style={styles.bookingIdText}>BK-{item.id}</Text>

@@ -28,7 +28,7 @@ export default function RentalDetailPage({ params }: { params: Promise<{ id: str
 
   function load(pid: string) {
     fetch(`/api/rentals/${pid}`)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => { setRental(d.rental); setPayments(d.payments ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   }

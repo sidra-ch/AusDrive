@@ -7,6 +7,9 @@ type User = {
   name: string;
   email: string;
   role: string;
+  kycStatus?: 'not_submitted' | 'pending' | 'approved' | 'rejected';
+  phone?: string;
+  avatarUrl?: string;
 };
 
 type AuthState = {

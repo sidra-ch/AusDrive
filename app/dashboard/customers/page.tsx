@@ -20,7 +20,7 @@ export default function CustomersPage() {
     if (search) params.set("search", search);
     if (status) params.set("status", status);
     fetch(`/api/customers?${params}&t=${Date.now()}`)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => { setCustomers(d.customers ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   }

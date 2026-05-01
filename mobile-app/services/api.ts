@@ -248,6 +248,7 @@ export const authAPI = {
   resetPassword: (email: string, token: string, newPassword: string) =>
     authRequestWithFallback('post', '/api/auth/reset-password', { email, token, newPassword }),
   logout: () => authRequestWithFallback('post', '/api/auth/logout'),
+  logoutAll: () => authRequestWithFallback('post', '/api/auth/logout-all'),
   me: () => authRequestWithFallback<{ user: AuthUser }>('get', '/api/auth/me'),
   google: (idToken: string) => authRequestWithFallback<AuthResponse>('post', '/api/auth/google', { idToken }),
   apple: (identityToken: string, fullName?: any) => authRequestWithFallback<AuthResponse>('post', '/api/auth/apple', { identityToken, fullName }),
@@ -256,6 +257,8 @@ export const authAPI = {
   verifyOtp: (data: { phone: string; code: string; name?: string; email?: string }) =>
     authRequestWithFallback<AuthResponse>('post', '/api/auth/verify-otp', data),
   refresh: (refreshToken: string) => authRequestWithFallback<AuthResponse>('post', '/api/auth/refresh', { refreshToken }),
+  resendVerification: (email: string) =>
+    authRequestWithFallback('post', '/api/auth/resend-verification', { email }),
 };
 
 export const pricingAPI = {
@@ -302,6 +305,43 @@ export const paymentsAPI = {
   }) => api.post('/api/payments/calculate-total', data),
   confirmPayment: (paymentIntentId: string) => api.post(`/api/payments/confirm/${paymentIntentId}`),
   refundPayment: (paymentIntentId: string, amount?: number) => api.post(`/api/payments/refund/${paymentIntentId}`, { amount }),
+  getStatus: (bookingId: string) => api.get(`/api/payments/${bookingId}/status`),
+};
+
+export const kycAPI = {
+  getStatus: () => api.get('/api/user/license/status'),
+  uploadDocument: (formData: FormData) =>
+    api.post('/api/user/license/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+};
+
+export const userAPI = {
+  getProfile: () => api.get('/api/user/me'),
+  updateProfile: (data: Record<string, any>) => api.put('/api/user/profile', data),
+  getSessions: () => api.get('/api/auth/sessions'),
+  terminateSession: (sessionId: string) => api.delete(`/api/auth/sessions/${sessionId}`),
+};
+
+export const supportAPI = {
+  createTicket: (data: { subject: string; description: string; priority?: string }) =>
+    api.post('/api/support/ticket', data),
+  getTickets: () => api.get('/api/support/tickets'),
+  getTicket: (id: string) => api.get(`/api/support/tickets/${id}`),
+  replyTicket: (id: string, message: string) =>
+    api.post(`/api/support/tickets/${id}/reply`, { message }),
+  getFaqs: () => api.get('/api/support/faqs'),
+};
+
+export const notificationsAppAPI = {
+  getAll: (params?: Record<string, any>) => api.get('/api/notifications', { params }),
+  markRead: (id: string) => api.post(`/api/notifications/${id}/read`),
+  markAllRead: () => api.post('/api/notifications/read-all'),
+};
+
+export const locationsAPI = {
+  getBranches: () => api.get('/api/locations'),
+  getBranch: (id: number) => api.get(`/api/locations/${id}`),
 };
 
 export default api;

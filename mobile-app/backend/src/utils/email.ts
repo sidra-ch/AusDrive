@@ -9,6 +9,14 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const formatEmailError = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Unknown email transport error";
+};
+
 export const sendVerificationEmail = async (email: string, token: string) => {
   const mailOptions = {
     from: process.env.EMAIL_FROM || "noreply@ausdrive.com.au",
@@ -20,12 +28,8 @@ export const sendVerificationEmail = async (email: string, token: string) => {
            <p>If you didn't request this, you can safely ignore this email.</p>`,
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Verification email sent to ${email}`);
-  } catch (error) {
-    console.error("Error sending email:", error);
-  }
+  await transporter.sendMail(mailOptions);
+  console.log(`Verification email sent to ${email}`);
 };
 
 export const sendPasswordResetEmail = async (email: string, token: string) => {
@@ -40,10 +44,14 @@ export const sendPasswordResetEmail = async (email: string, token: string) => {
            <p>If you didn't request this, you can safely ignore this email.</p>`,
   };
 
-  try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Password reset email sent to ${email}`);
-  } catch (error) {
-    console.error("Error sending email:", error);
-  }
+  await transporter.sendMail(mailOptions);
+  console.log(`Password reset email sent to ${email}`);
+};
+
+export const isEmailTransportConfigured = (): boolean => {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+};
+
+export const getEmailErrorMessage = (error: unknown): string => {
+  return formatEmailError(error);
 };

@@ -11,11 +11,12 @@ import carsRoutes from "./routes/cars.routes";
 import gpsRoutes from "./routes/gps.routes";
 import sessionsRoutes from "./routes/sessions.routes";
 import usersRoutes from "./routes/users.routes";
+import { ensureBackendSchema } from "./lib/schema";
 
 dotenv.config();
 
 const app: Express = express();
-const PORT = process.env.PORT || 3000;
+const BASE_PORT = Number(process.env.MOBILE_BACKEND_PORT || 3001);
 const server = createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
@@ -62,6 +63,29 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`[server]: Server is running at http://localhost:${PORT}`);
-});
+ensureBackendSchema()
+  .then(() => {
+    const listenWithFallback = (port: number, attempt = 0) => {
+      server.once("error", (err: NodeJS.ErrnoException) => {
+        if (err.code === "EADDRINUSE" && attempt < 30) {
+          const nextPort = port + 1;
+          console.warn(`[server]: Port ${port} busy, retrying on ${nextPort}`);
+          listenWithFallback(nextPort, attempt + 1);
+          return;
+        }
+
+        console.error("[server]: Failed to start", err);
+        process.exit(1);
+      });
+
+      server.listen(port, () => {
+        console.log(`[server]: Server is running at http://localhost:${port}`);
+      });
+    };
+
+    listenWithFallback(BASE_PORT);
+  })
+  .catch((err) => {
+    console.error("[server]: Failed to initialize schema", err);
+    process.exit(1);
+  });

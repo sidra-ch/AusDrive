@@ -14,8 +14,9 @@ export default function CompletedRentalsPage() {
 
   useEffect(() => {
     fetch("/api/rentals?status=completed")
-      .then((r) => r.json())
-      .then((d) => { setRentals(d.rentals ?? []); setLoading(false); });
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d) => { setRentals(d.rentals ?? []); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
   return (

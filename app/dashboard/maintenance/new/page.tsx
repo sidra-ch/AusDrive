@@ -22,7 +22,7 @@ export default function NewMaintenancePage() {
   });
 
   useEffect(() => {
-    fetch("/api/cars").then((r) => r.json()).then((d) => setCars(d.cars ?? []));
+    fetch("/api/cars").then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then((d) => setCars(d.cars ?? []));
   }, []);
 
   function set(k: string) { return (v: string) => setForm((f) => ({ ...f, [k]: v })); }

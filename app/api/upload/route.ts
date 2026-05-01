@@ -28,7 +28,10 @@ export async function POST(req: NextRequest) {
     const base64 = buffer.toString("base64");
     const dataURI = `data:${file.type};base64,${base64}`;
 
-    const folder = "ausdrive-cars";
+    const folderParam = formData.get("folder") as string || "ausdrive-cars";
+    const validFolders = ["ausdrive-cars", "ausdrive-licenses", "ausdrive-profiles"];
+    const folder = validFolders.includes(folderParam) ? folderParam : "ausdrive-cars";
+
     const timestamp = Math.round(Date.now() / 1000);
     const signaturePayload = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
     const signature = createHash("sha256")

@@ -18,6 +18,9 @@ interface User {
   name?: string;
   role: 'customer' | 'admin' | 'USER' | 'STAFF' | 'SUPER_ADMIN';
   branch?: string;
+  kycStatus?: 'not_submitted' | 'pending' | 'approved' | 'rejected';
+  phone?: string;
+  avatarUrl?: string;
 }
 
 interface AuthState {

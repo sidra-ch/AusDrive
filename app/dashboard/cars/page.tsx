@@ -7,8 +7,10 @@ import { Badge, GhostBtn, PageWrapper, PrimaryBtn, SectionHeader, Table, Td, Th 
 import { CSVImport } from "@/components/dashboard/csv-import";
 
 type Car = {
-  id: number; make: string; model: string; plate: string; year: number;
-  status: string; daily_rate: string; category: string; current_customer?: string; colour?: string;
+  id: string; make: string; model: string; plate: string; year: number;
+  status: string; daily_rate: string; category: string; current_customer?: string;
+  colour?: string; image_url?: string; mileage?: number; transmission?: string;
+  fuel_type?: string; city?: string; seats?: number;
 };
 
 function carStatusVariant(s: string): "success" | "danger" | "warning" | "info" | "neutral" {
@@ -21,6 +23,7 @@ function carStatusVariant(s: string): "success" | "danger" | "warning" | "info" 
 export default function CarsPage() {
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [category, setCategory] = useState("");
   const [search, setSearch] = useState("");
@@ -28,14 +31,28 @@ export default function CarsPage() {
 
   function load() {
     setLoading(true);
+    setError("");
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (category) params.set("category", category);
     if (search) params.set("search", search);
     fetch(`/api/cars?${params}&t=${Date.now()}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) {
+          const raw = await r.text();
+          let msg = `HTTP ${r.status}`;
+          try {
+            const parsed = raw ? JSON.parse(raw) as { error?: string } : null;
+            msg = parsed?.error || msg;
+          } catch {
+            // Keep fallback message.
+          }
+          throw new Error(msg);
+        }
+        return r.json();
+      })
       .then((d) => { setCars(d.cars ?? []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((e) => { setCars([]); setError(e instanceof Error ? e.message : "Failed to load cars"); setLoading(false); });
   }
 
   useEffect(() => { load(); }, [status, category, search]);
@@ -47,7 +64,7 @@ export default function CarsPage() {
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
-  async function deleteCar(id: number) {
+  async function deleteCar(id: string) {
     if (!confirm("Delete this car?")) return;
     await fetch(`/api/cars/${id}`, { method: "DELETE" });
     load();
@@ -73,6 +90,12 @@ export default function CarsPage() {
       {showImport && (
         <div className="mb-6">
           <CSVImport />
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
+          {error}
         </div>
       )}
 
@@ -103,23 +126,30 @@ export default function CarsPage() {
       ) : (
         <Table>
           <thead>
-            <tr><Th>Car</Th><Th>Plate</Th><Th>Year</Th><Th>Category</Th><Th>Daily Rate</Th><Th>Status</Th><Th>Customer</Th><Th>Actions</Th></tr>
+            <tr><Th>Car</Th><Th>Plate</Th><Th>Year</Th><Th>Transmission</Th><Th>Daily Rate</Th><Th>Status</Th><Th>Location</Th><Th>Actions</Th></tr>
           </thead>
           <tbody>
             {cars.map((car, index) => (
               <tr key={`${car.id}-${car.plate}-${index}`} className="hover:bg-white/3 transition">
                 <Td>
-                  <div>
-                    <p className="font-medium text-foreground">{car.make} {car.model}</p>
-                    <p className="text-xs text-muted-foreground">{car.colour ?? ""}</p>
+                  <div className="flex items-center gap-3">
+                    {car.image_url ? (
+                      <img src={car.image_url} alt={`${car.make} ${car.model}`} className="h-10 w-16 rounded-lg object-cover bg-white/5" />
+                    ) : (
+                      <div className="h-10 w-16 rounded-lg bg-white/5 flex items-center justify-center text-muted-foreground/40 text-xs">No img</div>
+                    )}
+                    <div>
+                      <p className="font-medium text-foreground">{car.make} {car.model}</p>
+                      <p className="text-xs text-muted-foreground">{car.colour ?? ""}{car.seats ? ` · ${car.seats} seats` : ""}</p>
+                    </div>
                   </div>
                 </Td>
                 <Td><span className="font-mono text-cyan-400">{car.plate}</span></Td>
                 <Td>{car.year}</Td>
-                <Td>{car.category}</Td>
-                <Td className="font-semibold text-foreground">${parseFloat(car.daily_rate).toFixed(0)}/day</Td>
+                <Td className="text-muted-foreground text-sm">{car.transmission ?? "—"}</Td>
+                <Td className="font-semibold text-foreground">${parseFloat(car.daily_rate ?? "0").toFixed(0)}/day</Td>
                 <Td><Badge label={car.status} variant={carStatusVariant(car.status)} /></Td>
-                <Td>{car.current_customer ?? <span className="text-muted-foreground/70">-</span>}</Td>
+                <Td className="text-muted-foreground text-sm">{car.city ?? "—"}</Td>
                 <Td>
                   <div className="flex items-center gap-1.5">
                     <Link href={`/dashboard/cars/${car.id}`}><GhostBtn className="px-2 py-1.5"><Eye className="h-3.5 w-3.5" /></GhostBtn></Link>

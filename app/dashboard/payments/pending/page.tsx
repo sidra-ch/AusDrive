@@ -16,7 +16,7 @@ export default function PendingPaymentsPage() {
   function load() {
     setLoading(true);
     fetch("/api/reports?type=pending_payments")
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => { setItems(d.data ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   }

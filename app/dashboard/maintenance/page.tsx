@@ -17,7 +17,7 @@ export default function MaintenancePage() {
   function load() {
     setLoading(true);
     fetch("/api/maintenance")
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((d) => { setRecords(d.maintenance ?? []); setLoading(false); })
       .catch(() => setLoading(false));
   }

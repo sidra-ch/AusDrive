@@ -1,8 +1,11 @@
 import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
+import { pool } from "../lib/prisma";
+import { ensureBackendSchema } from "../lib/schema";
 
 export const getSessions = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureBackendSchema();
+
     const userId = (req as any).userId;
 
     if (!userId) {
@@ -10,23 +13,22 @@ export const getSessions = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const sessions = await prisma.session.findMany({
-      where: {
-        userId,
-        isActive: true,
-      },
-      select: {
-        id: true,
-        deviceName: true,
-        deviceType: true,
-        ipAddress: true,
-        lastActivityAt: true,
-        createdAt: true,
-      },
-      orderBy: {
-        lastActivityAt: "desc",
-      },
-    });
+    const result = await pool.query(
+      `SELECT id, device_name, device_type, ip_address, last_activity_at, created_at
+       FROM user_sessions
+       WHERE user_id = $1 AND is_active = TRUE
+       ORDER BY last_activity_at DESC`,
+      [Number(userId)]
+    );
+
+    const sessions = result.rows.map((row) => ({
+      id: row.id,
+      deviceName: row.device_name,
+      deviceType: row.device_type,
+      ipAddress: row.ip_address,
+      lastActivityAt: row.last_activity_at,
+      createdAt: row.created_at,
+    }));
 
     res.status(200).json({
       sessions,
@@ -40,6 +42,8 @@ export const getSessions = async (req: Request, res: Response): Promise<void> =>
 
 export const deleteSession = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureBackendSchema();
+
     const userId = (req as any).userId;
     const sessionId = Array.isArray(req.params.sessionId)
       ? req.params.sessionId[0]
@@ -55,24 +59,26 @@ export const deleteSession = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const session = await prisma.session.findUnique({
-      where: { id: sessionId },
-    });
+    const sessionResult = await pool.query(
+      `SELECT id, user_id FROM user_sessions WHERE id = $1 LIMIT 1`,
+      [Number(sessionId)]
+    );
+    const session = sessionResult.rows[0];
 
     if (!session) {
       res.status(404).json({ error: "Session not found" });
       return;
     }
 
-    if (session.userId !== userId) {
+    if (Number(session.user_id) !== Number(userId)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
 
-    await prisma.session.update({
-      where: { id: sessionId },
-      data: { isActive: false },
-    });
+    await pool.query(
+      `UPDATE user_sessions SET is_active = FALSE WHERE id = $1`,
+      [Number(sessionId)]
+    );
 
     res.status(200).json({ message: "Session terminated successfully" });
   } catch (error) {
@@ -83,6 +89,8 @@ export const deleteSession = async (req: Request, res: Response): Promise<void> 
 
 export const deleteAllSessions = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureBackendSchema();
+
     const userId = (req as any).userId;
 
     if (!userId) {
@@ -90,13 +98,10 @@ export const deleteAllSessions = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    await prisma.session.updateMany({
-      where: {
-        userId,
-        isActive: true,
-      },
-      data: { isActive: false },
-    });
+    await pool.query(
+      `UPDATE user_sessions SET is_active = FALSE WHERE user_id = $1 AND is_active = TRUE`,
+      [Number(userId)]
+    );
 
     res.status(200).json({ message: "All sessions terminated successfully" });
   } catch (error) {

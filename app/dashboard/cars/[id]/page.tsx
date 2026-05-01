@@ -29,7 +29,7 @@ export default function CarDetailPage({ params }: { params: Promise<{ id: string
     params.then(({ id: pid }) => {
       setId(pid);
       fetch(`/api/cars/${pid}`)
-        .then((r) => r.json())
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then((d) => { setCar(d.car); setRentals(d.rentals ?? []); setMaintenance(d.maintenance ?? []); setGps(d.gps); setLoading(false); })
         .catch(() => setLoading(false));
     });

@@ -29,8 +29,12 @@ export default function BookingsPage() {
 
   useEffect(() => {
     fetch("/api/bookings")
-      .then((r) => r.json())
-      .then((d) => { setBookings(d.bookings ?? []); setLoading(false); });
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d) => { setBookings(d.bookings ?? []); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
   return (

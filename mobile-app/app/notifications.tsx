@@ -5,6 +5,7 @@ import { Bell, ChevronLeft, Calendar, CreditCard, Car, AlertTriangle, Gift } fro
 import { formatDistanceToNow } from 'date-fns';
 import { Colors } from '@/constants/Colors';
 import { notificationService, PushNotification } from '@/services/notifications';
+import { notificationsAppAPI } from '@/services/api';
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -14,38 +15,43 @@ export default function NotificationsScreen() {
 
   const loadNotifications = async () => {
     try {
-      // For now, we'll simulate loading notifications
-      // In a real app, this would fetch from an API
-      const mockNotifications: PushNotification[] = [
+      // Try real API first
+      const res = await notificationsAppAPI.getAll();
+      const apiNotifs: PushNotification[] = (res.data.notifications ?? []).map((n: any) => ({
+        id: String(n.id),
+        title: n.title,
+        body: n.body || n.message,
+        timestamp: n.createdAt || n.created_at || new Date().toISOString(),
+        type: n.type || 'system',
+        data: n.data ?? {},
+      }));
+      if (apiNotifs.length > 0) {
+        setNotifications(apiNotifs);
+        return;
+      }
+    } catch {
+      // fall through to mock data in dev
+    }
+    // Dev mock fallback
+    if (__DEV__) {
+      setNotifications([
         {
           id: '1',
           title: 'Booking Confirmed! 🎉',
           body: 'Your Tesla Model 3 is confirmed for Sydney pick-up.',
           timestamp: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
           type: 'booking',
-          data: { type: 'booking_confirmed', bookingId: '123' }
+          data: { type: 'booking_confirmed', bookingId: '123' },
         },
         {
           id: '2',
           title: 'Payment Successful ✅',
-          body: 'Payment of $450 processed successfully for your booking.',
+          body: 'Payment of $450 processed successfully.',
           timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
           type: 'payment',
-          data: { type: 'payment_success', bookingId: '123' }
+          data: { type: 'payment_success', bookingId: '123' },
         },
-        {
-          id: '3',
-          title: 'Special Offer! 🎁',
-          body: 'Get 20% off on your next luxury rental in Melbourne.',
-          timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-          type: 'promotional',
-          data: { type: 'promotional', promoCode: 'SAVE20' }
-        }
-      ];
-      
-      setNotifications(mockNotifications);
-    } catch (error) {
-      console.error('Failed to load notifications:', error);
+      ]);
     }
   };
 

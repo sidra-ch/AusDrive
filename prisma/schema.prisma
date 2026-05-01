@@ -1,0 +1,740 @@
+// AusDrive Premium - Production Prisma Schema
+// PostgreSQL with full FK constraints, indexes, and production features
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+  STAFF
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  PAID
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  OVERDUE
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  CANCELED
+  CHARGEBACK
+}
+
+enum PaymentMethod {
+  CARD
+  APPLE_PAY
+  GOOGLE_PAY
+  BANK_TRANSFER
+  CASH
+}
+
+enum CarStatus {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+  RESERVED
+  DECOMMISSIONED
+}
+
+enum CarCategory {
+  ECONOMY
+  COMPACT
+  MIDSIZE
+  STANDARD
+  FULL_SIZE
+  PREMIUM
+  LUXURY
+  SUV
+  VAN
+  CONVERTIBLE
+  ELECTRIC
+  HYBRID
+}
+
+enum TransmissionType {
+  AUTOMATIC
+  MANUAL
+  CVT
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  ELECTRIC
+  HYBRID
+  PLUGIN_HYBRID
+}
+
+enum NotificationType {
+  BOOKING
+  PAYMENT
+  SYSTEM
+  PROMOTIONAL
+  REMINDER
+  ALERT
+  OTP
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  WHATSAPP
+  PUSH
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  RETRYING
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  BOOKING_CREATE
+  BOOKING_CANCEL
+  BOOKING_CONFIRM
+  PAYMENT_CREATE
+  PAYMENT_REFUND
+  ADMIN_OVERRIDE
+  PASSWORD_RESET
+  EMAIL_VERIFY
+  OTP_SEND
+  OTP_VERIFY
+  FRAUD_FLAG
+  PRICE_CHANGE
+  CAR_STATUS_CHANGE
+}
+
+enum SessionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum FraudRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CancellationPolicy {
+  FLEXIBLE
+  MODERATE
+  STRICT
+  NON_REFUNDABLE
+}
+
+// ─────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────
+
+model User {
+  id               String          @id @default(cuid())
+  name             String
+  email            String          @unique
+  password         String?
+  phone            String?         @unique
+  role             UserRole        @default(USER)
+  branch           String          @default("Sydney")
+  isActive         Boolean         @default(true)
+  provider         String          @default("email")
+  isVerified       Boolean         @default(false)
+  verificationToken String?        @unique
+  resetToken       String?         @unique
+  resetTokenExpiry DateTime?
+  googleId         String?         @unique
+  appleSub         String?         @unique
+  facebookId       String?         @unique
+  profileImage     String?
+  stripeCustomerId String?         @unique
+  lastLogin        DateTime?
+  loginAttempts    Int             @default(0)
+  lockedUntil      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  // Relations
+  sessions         Session[]
+  bookings         Booking[]       @relation("UserBookings")
+  createdBookings  Booking[]       @relation("CreatedBy")
+  payments         Payment[]
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+  userDevices      UserDevice[]
+  otpAttempts      OtpAttempt[]
+  fraudFlags       FraudFlag[]
+
+  notificationPrefs NotificationPreference?
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+  @@index([isVerified])
+  @@index([isActive])
+  @@index([createdAt])
+  @@index([googleId])
+  @@index([appleSub])
+  @@index([stripeCustomerId])
+}
+
+model Session {
+  id             String        @id @default(cuid())
+  userId         String
+  refreshTokenHash String
+  deviceInfo     String?
+  ipAddress      String?
+  userAgent      String?
+  status         SessionStatus @default(ACTIVE)
+  expiresAt      DateTime
+  lastActiveAt   DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  revokedAt      DateTime?
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshTokenHash])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([userId, status])
+}
+
+model OtpAttempt {
+  id          String   @id @default(cuid())
+  userId      String?
+  phone       String
+  channel     String   // sms, whatsapp
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(5)
+  expiresAt   DateTime
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([phone])
+  @@index([expiresAt])
+  @@index([verified])
+}
+
+model Car {
+  id                String           @id @default(cuid())
+  make              String
+  model             String
+  year              Int
+  plateNumber       String           @unique
+  vin               String           @unique
+  category          CarCategory
+  status            CarStatus        @default(AVAILABLE)
+  transmission      TransmissionType
+  fuelType          FuelType
+  seats             Int
+  doors             Int
+  color             String
+  imageUrl          String?
+  images            String[]
+  dailyRate         Float
+  weeklyRate        Float?
+  monthlyRate       Float?
+  securityDeposit   Float            @default(0)
+  city              String
+  location          String
+  latitude          Float?
+  longitude         Float?
+  odometer          Int              @default(0)
+  isAvailable       Boolean          @default(true)
+  features          String[]
+  description       String?
+  insuranceType     String?
+  insuranceExpiry   DateTime?
+  registrationExpiry DateTime?
+  lastServiceDate   DateTime?
+  nextServiceDate   DateTime?
+  cancellationPolicy CancellationPolicy @default(MODERATE)
+  bufferMinutes     Int              @default(30)
+  minBookingHours   Int              @default(1)
+  maxBookingDays    Int              @default(30)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // Relations
+  bookings          Booking[]
+  maintenance       Maintenance[]
+  gpsTracking       GpsTracking[]
+  gpsLive           GpsLive?
+
+  @@index([status])
+  @@index([category])
+  @@index([city])
+  @@index([isAvailable])
+  @@index([plateNumber])
+  @@index([status, isAvailable])
+  @@index([city, status, isAvailable])
+  @@index([category, city, isAvailable])
+}
+
+model Booking {
+  id                  String        @id @default(cuid())
+  userId              String
+  carId               String
+  customerEmail       String
+  customerPhone       String?
+  customerName        String
+  pickupDate          DateTime
+  dropoffDate         DateTime
+  pickupLocation      String
+  dropoffLocation     String
+  status              BookingStatus @default(PENDING_PAYMENT)
+  totalAmount         Float
+  currency            String        @default("AUD")
+  securityDeposit     Float         @default(0)
+  paymentMethod       PaymentMethod?
+  paymentIntentId     String?       @unique
+  stripePaymentId     String?       @unique
+  promoCode           String?
+  discountAmount      Float         @default(0)
+  cancellationFee     Float         @default(0)
+  notes               String?
+  adminNotes          String?
+  fraudScore          Float?
+  fraudRisk           FraudRiskLevel?
+  isFraudFlagged      Boolean       @default(false)
+  createdById         String?
+  cancelledAt         DateTime?
+  cancelledBy         String?
+  cancellationReason  String?
+  confirmedAt         DateTime?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  pickupOdometer      Int?
+  dropoffOdometer     Int?
+  pickupCondition     String?
+  dropoffCondition    String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  // Relations
+  user                User          @relation("UserBookings", fields: [userId], references: [id])
+  car                 Car           @relation(fields: [carId], references: [id])
+  createdBy           User?         @relation("CreatedBy", fields: [createdById], references: [id])
+  payment             Payment?
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+
+  @@index([userId])
+  @@index([carId])
+  @@index([status])
+  @@index([pickupDate])
+  @@index([dropoffDate])
+  @@index([createdAt])
+  @@index([carId, status])
+  @@index([carId, pickupDate, dropoffDate])
+  @@index([userId, status])
+  @@index([paymentIntentId])
+  @@index([status, createdAt])
+  @@index([fraudRisk])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String
+  bookingId         String        @unique
+  stripePaymentId   String?       @unique
+  amount            Float
+  currency          String        @default("AUD")
+  status            PaymentStatus @default(PENDING)
+  paymentMethod     PaymentMethod @default(CARD)
+  stripeCustomerId  String?
+  idempotencyKey    String?       @unique
+  receiptUrl        String?
+  invoiceUrl        String?
+  refundAmount      Float         @default(0)
+  refundedAt        DateTime?
+  refundReason      String?
+  lastPaymentError  String?
+  failureCount      Int           @default(0)
+  processedAt       DateTime?
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user              User          @relation(fields: [userId], references: [id])
+  booking           Booking       @relation(fields: [bookingId], references: [id])
+
+  @@index([userId])
+  @@index([bookingId])
+  @@index([stripePaymentId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([idempotencyKey])
+}
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  stripeEventId String @unique
+  type        String
+  processed   Boolean  @default(false)
+  processedAt DateTime?
+  payload     Json
+  createdAt   DateTime @default(now())
+
+  @@index([stripeEventId])
+  @@index([processed])
+  @@index([createdAt])
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  userId      String
+  type        NotificationType
+  channel     NotificationChannel
+  title       String
+  message     String
+  html        String?
+  status      NotificationStatus @default(PENDING)
+  isRead      Boolean            @default(false)
+  readAt      DateTime?
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  error       String?
+  retryCount  Int                @default(0)
+  maxRetries  Int                @default(3)
+  scheduledAt DateTime?
+  bookingId   String?
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking     Booking?           @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([channel])
+  @@index([createdAt])
+  @@index([scheduledAt])
+  @@index([retryCount])
+  @@index([userId, isRead])
+}
+
+model NotificationPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  emailEnabled    Boolean  @default(true)
+  smsEnabled      Boolean  @default(true)
+  whatsappEnabled Boolean  @default(true)
+  pushEnabled     Boolean  @default(true)
+  bookingReminders Boolean @default(true)
+  promotionalEnabled Boolean @default(false)
+  paymentAlerts   Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String
+  platform   String   // ios, android, web
+  deviceName String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, token])
+  @@index([userId])
+  @@index([token])
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String?
+  userName   String?
+  action     AuditAction
+  module     String
+  recordId   String?
+  recordType String?
+  oldValue   Json?
+  newValue   Json?
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime    @default(now())
+
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  booking    Booking?    @relation(fields: [recordId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([module])
+  @@index([createdAt])
+  @@index([recordId])
+  @@index([recordType])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+model Maintenance {
+  id            String   @id @default(cuid())
+  carId         String
+  type          String
+  description   String?
+  cost          Float?
+  serviceDate   DateTime
+  provider      String?
+  invoiceNumber String?
+  notes         String?
+  status        String   @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  car           Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@index([carId])
+  @@index([status])
+  @@index([serviceDate])
+  @@index([carId, status])
+}
+
+model GpsTracking {
+  id        String   @id @default(cuid())
+  carId     String
+  latitude  Float
+  longitude Float
+  speed     Float?
+  heading   Float?
+  recordedAt DateTime @default(now())
+
+  car       Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@index([carId])
+  @@index([recordedAt])
+  @@index([carId, recordedAt])
+}
+
+model GpsLive {
+  carId     String   @id
+  latitude  Float
+  longitude Float
+  speed     Float?
+  heading   Float?
+  updatedAt DateTime @updatedAt
+
+  car       Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@index([carId])
+}
+
+model Customer {
+  id              String   @id @default(cuid())
+  name            String
+  email           String   @unique
+  phone           String?  @unique
+  licenceNumber   String?  @unique
+  licenceExpiry   DateTime?
+  licenceState    String?
+  address         String?
+  city            String?
+  state           String?
+  postcode        String?
+  dateOfBirth     DateTime?
+  emergencyContact String?
+  emergencyPhone  String?
+  notes           String?
+  isVerified      Boolean  @default(false)
+  totalBookings   Int      @default(0)
+  totalSpent      Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([email])
+  @@index([phone])
+  @@index([licenceNumber])
+  @@index([isVerified])
+  @@index([createdAt])
+}
+
+model Rental {
+  id              String   @id @default(cuid())
+  customerId      String
+  carId           String
+  pickupDate      DateTime
+  dropoffDate     DateTime
+  actualPickup    DateTime?
+  actualDropoff   DateTime?
+  dailyRate       Float
+  totalAmount     Float
+  deposit         Float    @default(0)
+  status          String   @default("BOOKED") // BOOKED, ACTIVE, COMPLETED, CANCELLED, OVERDUE
+  pickupOdometer  Int?
+  dropoffOdometer Int?
+  pickupCondition String?
+  dropoffCondition String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([carId])
+  @@index([status])
+  @@index([pickupDate])
+  @@index([createdAt])
+}
+
+model Invoice {
+  id              String   @id @default(cuid())
+  rentalId        String?
+  customerId      String?
+  invoiceNumber   String   @unique
+  amount          Float
+  tax             Float    @default(0)
+  total           Float
+  status          String   @default("PENDING") // PENDING, PAID, OVERDUE, CANCELLED
+  dueDate         DateTime
+  issuedDate      DateTime @default(now())
+  paidDate        DateTime?
+  items           Json?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([invoiceNumber])
+  @@index([status])
+  @@index([dueDate])
+  @@index([customerId])
+}
+
+model Location {
+  id          String   @id @default(cuid())
+  name        String
+  city        String
+  area        String
+  state       String
+  postcode    String
+  address     String
+  latitude    Float?
+  longitude   Float?
+  isActive    Boolean  @default(true)
+  operatingHours Json?
+  phone       String?
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([city])
+  @@index([state])
+  @@index([isActive])
+  @@index([city, state])
+}
+
+model PromoCode {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  discountType  String   // PERCENTAGE, FIXED
+  discountValue Float
+  maxUses       Int?
+  currentUses   Int      @default(0)
+  minBookingAmount Float?
+  expiresAt     DateTime
+  isActive      Boolean  @default(true)
+  applicableCars String[]
+  applicableCategories String[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@index([code, isActive])
+}
+
+model Setting {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  value      Json
+  category   String?
+  updatedAt  DateTime @updatedAt
+
+  @@index([key])
+  @@index([category])
+}
+
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  ipAddress String?
+  userAgent String?
+  referrer  String?
+  createdAt DateTime @default(now())
+
+  @@index([path])
+  @@index([createdAt])
+  @@index([ipAddress])
+}
+
+model FraudFlag {
+  id          String        @id @default(cuid())
+  userId      String
+  bookingId   String?
+  riskLevel   FraudRiskLevel
+  reason      String
+  details     Json?
+  isResolved  Boolean       @default(false)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime      @default(now())
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([riskLevel])
+  @@index([isResolved])
+  @@index([createdAt])
+  @@index([userId, isResolved])
+}
+
+model AiRecommendation {
+  id          String   @id @default(cuid())
+  userId      String
+  carIds      String[]
+  reason      String
+  factors     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}

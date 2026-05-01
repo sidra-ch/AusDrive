@@ -27,8 +27,8 @@ function NewRentalPageContent() {
   });
 
   useEffect(() => {
-    fetch("/api/cars?status=available").then((r) => r.json()).then((d) => setCars(d.cars ?? []));
-    fetch("/api/customers").then((r) => r.json()).then((d) => setCustomers(d.customers ?? []));
+    fetch("/api/cars?status=available").then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then((d) => setCars(d.cars ?? []));
+    fetch("/api/customers").then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then((d) => setCustomers(d.customers ?? []));
   }, []);
 
   // Auto-fill daily rate when car selected

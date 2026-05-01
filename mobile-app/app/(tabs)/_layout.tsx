@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Colors } from '@/constants/Colors';
-import { Home, Car, Calendar, MapPin, Wrench, Users, Key } from 'lucide-react-native';
+import { Home, Car, Calendar, MapPin, User, HeadphonesIcon } from 'lucide-react-native';
 
 export default function TabLayout() {
   return (
@@ -11,9 +11,9 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: '#fff',
           borderTopWidth: 0,
-          paddingBottom: 25, 
+          paddingBottom: 25,
           paddingTop: 12,
-          height: 90, 
+          height: 90,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.05,
@@ -25,7 +25,7 @@ export default function TabLayout() {
           fontWeight: '700',
           marginTop: 4,
         },
-        headerShown: false, 
+        headerShown: false,
       }}
     >
       <Tabs.Screen
@@ -57,13 +57,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="support"
+        options={{
+          title: 'Support',
+          tabBarIcon: ({ color }) => <HeadphonesIcon color={color} size={24} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <Users color={color} size={24} />,
+          tabBarIcon: ({ color }) => <User color={color} size={24} />,
         }}
       />
-      
+
       {/* Hidden secondary screens */}
       <Tabs.Screen name="saved" options={{ href: null }} />
       <Tabs.Screen name="offers" options={{ href: null }} />
