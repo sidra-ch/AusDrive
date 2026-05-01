@@ -1,4 +1,3 @@
-// @ts-ignore - @sendgrid/mail is optional and loaded at runtime if available
 import sgMail from "@sendgrid/mail";
 
 // Initialize SendGrid if API key is available
@@ -25,7 +24,7 @@ export async function sendEmail({
         html,
       };
 
-      const result = await sgMail.send(msg);
+      await sgMail.send(msg);
       console.log(`✅ [EMAIL SENT] To: ${to}, Subject: ${subject}`);
       return true;
     }
