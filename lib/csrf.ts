@@ -1,13 +1,13 @@
 import type { NextRequest, NextFetchEvent } from 'next/server';
 import { NextResponse } from 'next/server';
-import { tokens } from 'csrf';
+import Csrf from 'csrf';
 
-const csrfTokens = tokens();
+const csrfTokens = new Csrf();
 
 const SECRET = process.env.CSRF_SECRET || process.env.JWT_SECRET || 'ausdrive_csrf_secret_2025';
 
 export function getCsrfToken(): string {
-  return csrfTokens.secret(SECRET);
+  return csrfTokens.secretSync();
 }
 
 export function createCsrfToken(secret: string): string {
@@ -35,7 +35,7 @@ export async function csrfMiddleware(req: NextRequest, res: NextResponse): Promi
 }
 
 export function setCsrfCookie(res: NextResponse, secret: string): void {
-  const token = csrfTokens.secret(SECRET);
+  const token = csrfTokens.secretSync();
   res.cookies.set('csrf_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

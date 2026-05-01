@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     if (!deviceToken || !deviceType) {
       return handleCORS(
         NextResponse.json(
-          { error: "Missing required fields: deviceToken, deviceType" },
+          { error: "Missing required fields: deviceToken, deviceType (platform)" },
           { status: 400 }
         ),
         req.headers.get("origin") || undefined
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     // Check if device token already exists
     const existingDevice = await prisma.userDevice.findFirst({
-      where: { deviceToken }
+      where: { token: deviceToken }
     });
 
     if (existingDevice) {
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
         where: { id: existingDevice.id },
         data: {
           userId,
-          deviceType,
+          platform: deviceType,
           deviceName: deviceName || `${deviceType} Device`,
           isActive: true,
           updatedAt: new Date()
@@ -74,8 +74,8 @@ export async function POST(req: NextRequest) {
       const newDevice = await prisma.userDevice.create({
         data: {
           userId,
-          deviceToken,
-          deviceType,
+          token: deviceToken,
+          platform: deviceType,
           deviceName: deviceName || `${deviceType} Device`,
           isActive: true
         }
@@ -130,7 +130,7 @@ export async function DELETE(req: NextRequest) {
     // Delete device token
     const deletedDevice = await prisma.userDevice.deleteMany({
       where: {
-        deviceToken,
+        token: deviceToken,
         userId // Ensure user can only delete their own devices
       }
     });
@@ -181,8 +181,8 @@ export async function GET(req: NextRequest) {
       where: { userId },
       select: {
         id: true,
-        deviceToken: true,
-        deviceType: true,
+        token: true,
+        platform: true,
         deviceName: true,
         isActive: true,
         createdAt: true,

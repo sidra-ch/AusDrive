@@ -1,3 +1,4 @@
+// @ts-ignore - @sendgrid/mail is optional and loaded at runtime if available
 import sgMail from "@sendgrid/mail";
 
 // Initialize SendGrid if API key is available

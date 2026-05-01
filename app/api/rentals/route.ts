@@ -43,8 +43,10 @@ export async function GET(req: NextRequest) {
     booking_created_at: boolean;
     car_plate_number: boolean;
     car_plate: boolean;
+    car_rego: boolean;
     car_category: boolean;
     payment_booking_id: boolean;
+    booking_total_price: boolean;
   }>(`SELECT
       to_regclass('public.rentals') AS legacy_rentals,
       to_regclass('public."Booking"') AS prisma_booking,
@@ -85,7 +87,7 @@ export async function GET(req: NextRequest) {
   const plateExpr = schema?.car_plate_number ? 'ca."plateNumber"' : schema?.car_plate ? "ca.plate" : schema?.car_rego ? "ca.rego" : "NULL::text";
   const startDateExpr = schema?.booking_pickup_date ? 'b."pickupDate"' : "NULL::timestamptz";
   const expectedReturnExpr = schema?.booking_dropoff_date ? 'b."dropoffDate"' : "NULL::timestamptz";
-  const totalAmountExpr = schema?.booking_total_amount ? 'b."totalAmount"' : (schema as { booking_total_price?: boolean })?.booking_total_price ? 'b."totalPrice"' : "0::numeric";
+  const totalAmountExpr = schema?.booking_total_amount ? 'b."totalAmount"' : schema?.booking_total_price ? 'b."totalPrice"' : "0::numeric";
   const statusExpr = schema?.booking_status ? "lower(b.status::text)" : "'pending'::text";
   const createdAtExpr = schema?.booking_created_at ? 'b."createdAt"' : "NOW()";
   const customerNameExpr = schema?.booking_customer_name

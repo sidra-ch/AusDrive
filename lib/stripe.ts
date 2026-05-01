@@ -89,12 +89,13 @@ class StripeService {
           status: 'PENDING'
         },
         create: {
+          userId: booking.userId,
           bookingId,
           stripePaymentId: paymentIntent.id,
           amount,
           currency,
           status: 'PENDING',
-          paymentMethod: 'card'
+          paymentMethod: 'CARD'
         }
       });
 
@@ -294,7 +295,7 @@ class StripeService {
     // Update booking status
     await prisma.booking.update({
       where: { id: bookingId },
-      data: { status: 'PENDING' } // Reset to pending for retry
+      data: { status: 'PENDING_PAYMENT' } // Reset to pending for retry
     });
 
     console.log(`[Stripe] Payment failed for booking ${bookingId}: ${paymentIntent.last_payment_error?.message}`);
