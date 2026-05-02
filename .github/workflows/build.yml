@@ -25,3 +25,11 @@ jobs:
 
       - name: Build app
         run: npm run build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          JWT_SECRET: dummy-secret-for-build-purposes-only
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          STRIPE_SECRET_KEY: sk_test_dummy
+          CLOUDINARY_API_KEY: dummy
+          CLOUDINARY_API_SECRET: dummy
+          CLOUDINARY_CLOUD_NAME: dummy
