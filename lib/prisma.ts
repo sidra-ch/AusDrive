@@ -1,22 +1,17 @@
-type GenericPrismaClient = Record<string, unknown>;
+import { PrismaClient } from "./generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+
+type PrismaClientInstance = InstanceType<typeof PrismaClient>;
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: GenericPrismaClient | undefined;
+  prisma: PrismaClientInstance | undefined;
 };
 
-function createPrismaClient(): GenericPrismaClient {
+function createPrismaClient(): PrismaClientInstance {
   const connectionString = process.env.DATABASE_URL?.trim();
   if (!connectionString) {
     throw new Error("DATABASE_URL is not defined");
   }
-
-  // Use runtime loading to avoid compile-time coupling to Prisma-generated typings.
-  const { PrismaClient } = require("@prisma/client") as {
-    PrismaClient: new (options?: Record<string, unknown>) => GenericPrismaClient;
-  };
-  const { PrismaPg } = require("@prisma/adapter-pg") as {
-    PrismaPg: new (options: { connectionString: string }) => unknown;
-  };
 
   const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({
@@ -26,8 +21,10 @@ function createPrismaClient(): GenericPrismaClient {
   });
 }
 
-export const prisma: any = globalForPrisma.prisma ?? createPrismaClient();
+export const prisma: PrismaClientInstance =
+  globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
+

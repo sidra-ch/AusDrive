@@ -32,6 +32,7 @@
     "hooks/**/*.tsx",
     "lib/**/*.ts",
     "lib/**/*.tsx",
+    "lib/generated/**/*.ts",
     "proxy.ts",
     "server.ts",
     "next.config.ts",
