@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Mobile app is a separate Expo project with its own lint config
     "mobile-app/**",
+    // NestJS compiled output — CommonJS dist files should not be linted
+    "nestjs-backend/dist/**",
+    // Auto-generated Prisma client files
+    "lib/generated/**",
   ]),
   {
     rules: {
