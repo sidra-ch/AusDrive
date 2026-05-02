@@ -4,7 +4,6 @@ import { PageTracker } from "@/components/page-tracker";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth-context";
 import { PremiumLoader } from "@/components/premium-loader";
-import { PremiumFullscreenLoader } from "@/components/premium-fullscreen-loader";
 import "./globals.css";
 
 const inter = Inter({
@@ -37,7 +36,6 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>
-            <PremiumFullscreenLoader />
             <PremiumLoader />
             <PageTracker />
             {children}
