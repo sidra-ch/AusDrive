@@ -2,8 +2,7 @@
 // PostgreSQL with full FK constraints, indexes, and production features
 
 generator client {
-  provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
