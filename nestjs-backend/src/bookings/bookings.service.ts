@@ -34,20 +34,31 @@ export class BookingsService {
     }
 
     // 2. Determine initial status
-    const initialStatus = isAdmin ? 'PENDING' : 'PENDING_PAYMENT';
+    const initialStatus = isAdmin ? 'CONFIRMED' : 'PENDING_PAYMENT';
 
-    // 3. Create the booking
+    // 3. Get user details for booking (required by schema)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // 4. Create the booking
     const booking = await this.prisma.booking.create({
       data: {
         userId,
         carId,
+        customerEmail: user.email,
+        customerName: user.name,
+        customerPhone: user.phone,
         pickupDate: pickup,
         dropoffDate: dropoff,
         pickupLocation: pickupLocation || 'Main Branch',
         dropoffLocation: pickupLocation || 'Main Branch',
-        status: initialStatus,
-        totalPrice: 100,
-        pricePerDay: 50,
+        status: initialStatus as any, // Cast to any to avoid enum type issues if they persist
+        totalAmount: 100,
       }
     });
 

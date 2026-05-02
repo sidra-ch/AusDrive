@@ -1,21 +1,28 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-
-// Prisma v7: import from generated output path, not '@prisma/client'
-// PrismaClient can no longer be extended as a class in v7 — use composition.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyPrismaClient = any;
+import type { PrismaClient } from '@prisma/client';
 
 @Injectable()
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _client: AnyPrismaClient = null;
+  private _client: any = null;
 
-  get client(): AnyPrismaClient {
+  constructor() {
+    return new Proxy(this, {
+      get: (target, prop) => {
+        if (prop in target) return (target as any)[prop];
+        if (target._client && prop in target._client) {
+          const value = target._client[prop];
+          return typeof value === 'function' ? value.bind(target._client) : value;
+        }
+        return undefined;
+      },
+    });
+  }
+
+  get client(): any {
     return this._client;
   }
 
   async onModuleInit() {
-    // Dynamic import so this doesn't break the root Next.js build
     const { PrismaClient } = await import('@prisma/client');
     this._client = new (PrismaClient as any)();
     await this._client.$connect();
@@ -27,3 +34,6 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     }
   }
 }
+
+// Merge the class with the PrismaClient interface for TypeScript support
+export interface PrismaService extends PrismaClient {}

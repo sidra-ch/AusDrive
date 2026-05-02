@@ -42,7 +42,7 @@ export class TrackingGateway implements OnGatewayConnection, OnGatewayDisconnect
   // This method will be called by a BullMQ background worker simulating GPS data
   async broadcastCarLocation(carId: string, latitude: number, longitude: number, speed: number) {
     // 1. Save to database for route history
-    await this.prisma.gpsLog.create({
+    await this.prisma.gpsTracking.create({
       data: {
         carId,
         latitude,

@@ -1,6 +1,6 @@
 import { Controller, Post, Body, Get, Req, UnauthorizedException } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
-import { Request } from 'express';
+import type { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
 
 @Controller('api/bookings')
