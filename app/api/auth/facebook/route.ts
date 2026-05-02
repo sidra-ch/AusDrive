@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
     
     const payload = await verifyRes.json();
-    const { email, name, id: facebookId } = payload;
+    const { email, name } = payload;
     
     if (!email) {
       return handleCORS(NextResponse.json({ error: "Facebook account must share email address" }, { status: 400 }), req.headers.get("origin") || undefined);

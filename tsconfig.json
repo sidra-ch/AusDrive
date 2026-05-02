@@ -33,7 +33,6 @@
     "lib/**/*.ts",
     "lib/**/*.tsx",
     "proxy.ts",
-    "middleware.ts",
     "server.ts",
     "next.config.ts",
     ".next/types/**/*.ts",

@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { query, queryOne } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
-function normalizeEnumLike(value: unknown): string {
-  return String(value ?? "").trim().replace(/\s+/g, "_").replace(/-/g, "_").toUpperCase();
-}
-
 async function detectSchema() {
   const rows = await query<{
     legacy_rentals: string | null;

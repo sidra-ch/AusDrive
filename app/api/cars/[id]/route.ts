@@ -6,13 +6,6 @@ function normalizeEnumLike(value: unknown): string {
   return String(value ?? "").trim().replace(/\s+/g, "_").replace(/-/g, "_").toUpperCase();
 }
 
-function mapCarCategory(value: unknown): string {
-  const normalized = normalizeEnumLike(value);
-  if (normalized === "PEOPLE_MOVER") return "VAN";
-  if (normalized === "UTE") return "SUV";
-  return normalized;
-}
-
 function mapTransmission(value: unknown): string {
   const normalized = normalizeEnumLike(value);
   if (normalized === "AUTO") return "AUTOMATIC";
@@ -110,11 +103,6 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   const hasPrisma = Boolean(tableMode?.prisma_car);
   const usePrisma = hasPrisma;
   const useLegacy = !usePrisma && hasLegacy;
-  const bookingCustomerExpr = tableMode?.booking_customer_name
-    ? 'b."customerName"'
-    : tableMode?.booking_customer_email
-    ? 'b."customerEmail"'
-    : "NULL::text";
   const canUseBookingRentals = Boolean(
     tableMode?.prisma_booking &&
     tableMode?.booking_car_id &&

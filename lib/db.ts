@@ -34,8 +34,6 @@ function getPool(): Pool {
   return currentPool;
 }
 
-export const db = getPool();
-
 export async function query<T = Record<string, unknown>>(
   sql: string,
   params?: unknown[]

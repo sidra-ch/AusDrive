@@ -33,9 +33,13 @@ export function useSocket(callbacks: SocketCallbacks = {}) {
     socketRef.current?.emit("booking:leave", bookingId);
   }, []);
 
-  useEffect(() => {
+  const attachListeners = useCallback(() => {
     const s = connectSocket();
     socketRef.current = s;
+
+    if (!s) {
+      return undefined;
+    }
 
     s.on("booking:updated", (p: BookingUpdatedPayload) =>
       callbacksRef.current.onBookingUpdated?.(p)
@@ -56,9 +60,13 @@ export function useSocket(callbacks: SocketCallbacks = {}) {
       s.off("notification:new");
       s.off("admin:dashboard_update");
       disconnectSocket();
+      socketRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { socket: socketRef.current, joinBooking, leaveBooking };
+  useEffect(() => {
+    return attachListeners();
+  }, [attachListeners]);
+
+  return { joinBooking, leaveBooking };
 }

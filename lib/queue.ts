@@ -1,5 +1,5 @@
 import { Queue, Worker, Job } from 'bullmq';
-import { getRedisClient, getRedisOrFallback } from './redis';
+import { getRedisOrFallback } from './redis';
 import { sendEmail } from './email';
 import { prisma } from './prisma';
 import { emitNotification } from './socket';
@@ -11,8 +11,8 @@ const WHATSAPP_QUEUE_NAME = 'whatsapp-notifications';
 
 let notificationQueue: Queue | null = null;
 let emailQueue: Queue | null = null;
-let smsQueue: Queue | null = null;
-let whatsappQueue: Queue | null = null;
+const smsQueue: Queue | null = null;
+const whatsappQueue: Queue | null = null;
 
 export interface NotificationJobData {
   notificationId: string;

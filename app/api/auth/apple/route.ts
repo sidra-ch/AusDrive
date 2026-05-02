@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
             audience: 'com.ausdrive.fleet', // Must match bundle identifier
         });
         payload = verifiedPayload;
-    } catch (e) {
+    } catch {
         return handleCORS(NextResponse.json({ error: "Invalid Apple token" }, { status: 400 }), req.headers.get("origin") || undefined);
     }
 

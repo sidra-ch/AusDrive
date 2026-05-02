@@ -2,15 +2,20 @@
   "name": "ausdrive-premium",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "next dev",
+    "dev:socket": "tsx server.ts",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:mobile\"",
     "dev:mobile": "cd mobile-app && npm run dev",
     "dev:backend": "cd mobile-app/backend && npm run dev",
     "postinstall": "prisma generate",
     "build": "next build",
-    "start": "NODE_ENV=production tsx server.ts",
-    "lint": "eslint"
+    "start": "next start",
+    "lint": "eslint",
+    "check:deploy": "node scripts/check-deploy-readiness.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

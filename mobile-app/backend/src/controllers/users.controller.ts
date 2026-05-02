@@ -3,6 +3,14 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { pool } from "../lib/prisma";
 
+async function safePasswordCompare(plain: string, hash: string): Promise<boolean> {
+  try {
+    return await bcrypt.compare(plain, hash);
+  } catch {
+    return false;
+  }
+}
+
 const updateProfileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").optional(),
   phone: z.string().optional(),
@@ -143,7 +151,7 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const passwordMatch = await bcrypt.compare(
+    const passwordMatch = await safePasswordCompare(
       validatedData.currentPassword,
       user.password
     );
@@ -197,7 +205,7 @@ export const deleteAccount = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.password);
+    const passwordMatch = await safePasswordCompare(password, user.password);
 
     if (!passwordMatch) {
       res.status(401).json({ error: "Password is incorrect" });

@@ -3,6 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 
+async function safePasswordCompare(plain: string, hash: string): Promise<boolean> {
+  try {
+    return await bcrypt.compare(plain, hash);
+  } catch {
+    return false;
+  }
+}
+
 @Injectable()
 export class AuthService {
   constructor(private prisma: PrismaService) {}
@@ -18,7 +26,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const valid = await bcrypt.compare(password, user.password);
+    const valid = await safePasswordCompare(password, user.password);
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials');
     }

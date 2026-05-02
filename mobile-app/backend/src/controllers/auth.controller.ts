@@ -11,6 +11,14 @@ import {
   getEmailErrorMessage,
 } from "../utils/email";
 
+async function safePasswordCompare(plain: string, hash: string): Promise<boolean> {
+  try {
+    return await bcrypt.compare(plain, hash);
+  } catch {
+    return false;
+  }
+}
+
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email format"),
@@ -116,7 +124,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.password);
+    const passwordMatch = await safePasswordCompare(password, user.password);
 
     if (!passwordMatch) {
       res.status(401).json({ error: "Wrong password" });

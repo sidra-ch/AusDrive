@@ -1,10 +1,15 @@
 import type { Server as HTTPServer } from "http";
 import { Server as SocketIOServer, type Socket } from "socket.io";
 import { jwtVerify } from "jose";
+import { requiredEnv } from "@/lib/env";
 
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? "ausdrive_super_secret_jwt_key_2025"
-);
+let _secret: Uint8Array | null = null;
+function getSecret(): Uint8Array {
+  if (!_secret) {
+    _secret = new TextEncoder().encode(requiredEnv("JWT_SECRET"));
+  }
+  return _secret;
+}
 
 export type SocketUser = {
   sub: number;
@@ -62,7 +67,7 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
         return next(new Error("Authentication required"));
       }
 
-      const { payload } = await jwtVerify(token, secret);
+      const { payload } = await jwtVerify(token, getSecret());
       socket.data.user = {
         sub: Number(payload.sub),
         name: payload.name as string,

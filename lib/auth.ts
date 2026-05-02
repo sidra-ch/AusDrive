@@ -2,13 +2,26 @@ import crypto from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
+import { requiredEnv } from "@/lib/env";
 
-const accessSecret = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? "ausdrive_super_secret_jwt_key_2025"
-);
-const refreshSecret = new TextEncoder().encode(
-  process.env.JWT_REFRESH_SECRET ?? process.env.JWT_SECRET ?? "ausdrive_refresh_secret_2025"
-);
+let _accessSecret: Uint8Array | null = null;
+let _refreshSecret: Uint8Array | null = null;
+
+function getAccessSecret(): Uint8Array {
+  if (!_accessSecret) {
+    _accessSecret = new TextEncoder().encode(requiredEnv("JWT_SECRET"));
+  }
+  return _accessSecret;
+}
+
+function getRefreshSecret(): Uint8Array {
+  if (!_refreshSecret) {
+    _refreshSecret = new TextEncoder().encode(
+      process.env.JWT_REFRESH_SECRET?.trim() || requiredEnv("JWT_SECRET")
+    );
+  }
+  return _refreshSecret;
+}
 
 export const AUTH_COOKIE_NAME = "auth_token";
 export const REFRESH_COOKIE_NAME = "refresh_token";
@@ -38,11 +51,11 @@ async function signJwt(
 }
 
 export async function signAccessToken(payload: JWTPayload): Promise<string> {
-  return signJwt(payload, accessSecret, ACCESS_TOKEN_TTL, "access");
+  return signJwt(payload, getAccessSecret(), ACCESS_TOKEN_TTL, "access");
 }
 
 export async function signRefreshToken(payload: JWTPayload): Promise<string> {
-  return signJwt(payload, refreshSecret, REFRESH_TOKEN_TTL, "refresh");
+  return signJwt(payload, getRefreshSecret(), REFRESH_TOKEN_TTL, "refresh");
 }
 
 // Backward-compatible alias for existing routes.
@@ -75,11 +88,11 @@ async function verifyJwt(
 }
 
 export async function verifyAccessToken(token: string): Promise<JWTPayload | null> {
-  return verifyJwt(token, accessSecret, "access");
+  return verifyJwt(token, getAccessSecret(), "access");
 }
 
 export async function verifyRefreshToken(token: string): Promise<JWTPayload | null> {
-  return verifyJwt(token, refreshSecret, "refresh");
+  return verifyJwt(token, getRefreshSecret(), "refresh");
 }
 
 // Backward-compatible alias for existing imports.

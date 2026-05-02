@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { requiredEnv } from "@/lib/env";
 
-const accessSecret = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? "ausdrive_super_secret_jwt_key_2025",
-);
+let _accessSecret: Uint8Array | null = null;
+function getAccessSecret(): Uint8Array {
+  if (!_accessSecret) {
+    _accessSecret = new TextEncoder().encode(requiredEnv("JWT_SECRET"));
+  }
+  return _accessSecret;
+}
 
 const ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
 const STAFF_ROLES = new Set(["ADMIN", "SUPER_ADMIN", "STAFF"]);
@@ -36,7 +41,7 @@ type TokenClaims = {
 
 async function verifyAccessToken(token: string): Promise<TokenClaims | null> {
   try {
-    const { payload } = await jwtVerify(token, accessSecret);
+    const { payload } = await jwtVerify(token, getAccessSecret());
     const tokenType = payload.tokenType as string | undefined;
     if (tokenType && tokenType !== "access") return null;
     return payload as unknown as TokenClaims;

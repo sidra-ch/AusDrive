@@ -10,7 +10,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const unread = notifications.length;
 
-  const { socket } = useSocket({
+  useSocket({
     onNotification: (payload) => {
       setNotifications((prev) => [payload, ...prev].slice(0, 20));
     },
@@ -28,8 +28,6 @@ export function NotificationBell() {
       .catch(() => {/* silently ignore */});
   }, []);
 
-  // Suppress unused warning — socket is kept for side-effects only
-  void socket;
 
   return (
     <div className="relative">
