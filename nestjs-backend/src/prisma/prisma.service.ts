@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 
 @Injectable()
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class PrismaService implements OnModuleInit, OnModuleDestroy {
   private _client: any = null;
 
@@ -36,4 +37,5 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
 }
 
 // Merge the class with the PrismaClient interface for TypeScript support
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging, @typescript-eslint/no-empty-object-type
 export interface PrismaService extends PrismaClient {}
